@@ -1,0 +1,57 @@
+# The covenant bytecode this repository ships is what its sources compile to, with
+# the one pinned compiler. It controls minting, so nobody takes that on trust.
+name: covenant bytecode
+on:
+  push:
+    branches: [main]
+    paths:
+      - bridge/kaspa/**
+      - bridge/packages/core/pkg-web/**
+      - bridge/packages/core/pkg-node/**
+      - tools/wasm.sh
+      - tools/docker/**
+      - vendor/kcc20-reference/**
+      - tools/check-artifacts.mjs
+      - tools/rust.sh
+      - tools/vendor.sh
+      - .github/workflows/artifacts.yml
+  pull_request:
+    paths:
+      - bridge/kaspa/**
+      - bridge/packages/core/pkg-web/**
+      - bridge/packages/core/pkg-node/**
+      - tools/wasm.sh
+      - tools/docker/**
+      - vendor/kcc20-reference/**
+      - tools/check-artifacts.mjs
+      - tools/rust.sh
+      - tools/vendor.sh
+      - .github/workflows/artifacts.yml
+permissions:
+  contents: read
+jobs:
+  reproduce:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: One compiler commit, the builders pinned, and the sources, artifacts and bytecode on record
+        run: node tools/check-artifacts.mjs --upstream
+      # The builders run on a copy of the tree and write only there. What they made is compared with this checkout,
+      # which no builder mounts: one that rewrote the tree as well as its output passed when the job compared the
+      # very tree the builder had written (run 21, Daybreak [6]).
+      - name: A copy of the tree for the builders
+        run: mkdir "$RUNNER_TEMP/build" && git archive HEAD | tar -x -C "$RUNNER_TEMP/build"
+      - name: Recompile the contracts in the pinned toolchain, and compare them with the committed artifacts
+        run: |
+          build="$RUNNER_TEMP/build"
+          bash "$build/tools/rust.sh" bridge/kaspa cargo test --locked --test artifacts --test template
+          bash "$build/tools/rust.sh" bridge/kaspa cargo run --locked --example build_artifacts
+          diff -r "$build/bridge/kaspa/artifacts" bridge/kaspa/artifacts
+      - name: Rebuild the WebAssembly core that embeds the bytecode, and compare
+        run: |
+          build="$RUNNER_TEMP/build"
+          rm -rf "$build/bridge/packages/core/pkg-web" "$build/bridge/packages/core/pkg-node"
+          bash "$build/tools/wasm.sh"
+          diff -r "$build/bridge/packages/core/pkg-web" bridge/packages/core/pkg-web
+          diff -r "$build/bridge/packages/core/pkg-node" bridge/packages/core/pkg-node

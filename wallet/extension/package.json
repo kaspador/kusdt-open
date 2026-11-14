@@ -1,0 +1,44 @@
+{
+  "name": "kusdt-wallet-extension",
+  "version": "0.9.23",
+  "private": true,
+  "description": "kUSDT Wallet: a Kaspa L1 wallet with kUSDT (KCC-20), the KAS-kUSDT pool and the USDT bridge to Ethereum and BNB Chain.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:simnet": "node scripts/simnet-test.mjs",
+    "test:stack": "node scripts/stack-test.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "icons": "node scripts/icons.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/figtree": "5.3.0",
+    "@noble/ciphers": "^2.4.0",
+    "@noble/curves": "^2.4.0",
+    "@noble/hashes": "^2.4.0",
+    "@scure/base": "^2.4.0",
+    "@scure/bip32": "^2.4.0",
+    "@scure/bip39": "^2.4.0",
+    "qrcode": "^1.5.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.7.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/chrome": "^0.0.270",
+    "@types/node": "^22.10.0",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^5.1.2",
+    "playwright-core": "^1.56.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.6.0",
+    "vite": "^7.3.6",
+    "vitest": "^4.1.11"
+  }
+}

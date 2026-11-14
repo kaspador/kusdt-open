@@ -1,0 +1,9 @@
+# LF in every checkout, whatever core.autocrlf says: the shell scripts, the
+# Caddyfiles and the compose file run on Linux hosts, where CRLF breaks them.
+* text=auto eol=lf
+*.wasm binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
+*.zip binary

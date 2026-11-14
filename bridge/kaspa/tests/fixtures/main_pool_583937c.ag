@@ -1,0 +1,883 @@
+// KasPool's pool.ag as it is on main 583937c (before the branch pool-clock), for comparisons in the script engine
+// (tests/audit3_pool.rs, the temporary-liquidity test). Only its import path differs. Never deployed from here.
+
+// KasPool: a constant-product KAS ⇄ kUSDT pool on Kaspa L1.
+//
+// The pool family holds two actors:
+// - Pool, a singleton. Its UTXO holds the KAS reserve (plus a fixed base
+//   deposit and the protocol's accrued KAS). Its kUSDT reserve is one KCC20
+//   state in the kUSDT family, owned by the pool's covenant ID (KCC-2
+//   covenant-id/v1), with borrowing disabled.
+// - Position, one per liquidity deposit: shares and an owner key.
+//
+// Safety rules the actors enforce:
+// - Every Pool entry observes the kUSDT family exhaustively: the reserve, and
+//   only the reserve plus the one user state the shape allows, may move, and
+//   the reserve's successor is forced.
+// - A covenant-id/v1 owner is satisfied by ANY input of the owner's family.
+//   So every entry that does not observe kUSDT (Position transfers, the
+//   pause and the key changes) refuses any kUSDT input in its transaction.
+// - Swaps keep (X + in·(1 − fee)) · Y' ≥ X · Y, checked exactly with 128-bit
+//   products (31-bit limbs; Kaspa script numbers are 64-bit).
+// - A swap spends the exact pool UTXO it was built on: a competing swap makes
+//   it invalid, never worse.
+// - A circuit breaker: an allowance of `max_out_bps` of the KAS reserve (the
+//   cap) that refills at one cap per `window_len` DAA, so over any time t at
+//   most about cap + cap · t / window_len can leave through sells, net of
+//   buys. kUSDT minted with stolen bridge keys is real kUSDT to this pool, so
+//   the breaker is what keeps such a dump from draining the KAS side at once
+//   (SPEC §15). It counts the net flow so that round trips (a buy, then a
+//   sell) cannot use up honest sellers' room. Counting the net is as safe: on
+//   the constant-product curve the pool's end state follows from its net KAS
+//   change alone, so a dump takes the same out of it either way.
+//   The clock is the pool UTXO's own age, which consensus proves (the input's
+//   sequence is a relative lock): a claimed age can't exceed the time the
+//   UTXO really stood. Every swap makes a new pool UTXO, so only real time
+//   between pool spends refills the allowance; a burst of sells in one moment
+//   can claim none of it. Claiming less age leaves less room, or, while buys
+//   have left the count negative, less of the room those buys gave.
+//   With no time claimed the reference can't rise and what was used is
+//   forgiven only by real buys, and only while the KAS those buys brought
+//   stays: `window_credit` tracks it, and a remove hands that much of the
+//   credit back. A buy paid for with liquidity added a moment ago and taken
+//   out again therefore forgives nothing. Used room plus that credit never
+//   falls without claimed time.
+// - The guardian may pause swaps and new liquidity; withdrawals stay open.
+//   Only the admin resumes.
+
+import "../../contracts/kusdt.ag";
+
+const int BPS = 10000;
+// 0.50 % per swap: 0.45 % stays with the liquidity, 0.05 % accrues to the protocol.
+const int FEE_BPS = 50;
+const int PROTOCOL_BPS = 5;
+// Shares minted at the first deposit that nobody owns (they keep the share
+// price from being manipulated while the pool is tiny).
+const int MIN_LIQUIDITY = 1000;
+// The KAS the reserve's token output must keep (1 KAS). Its state is bound and its value otherwise is not: anyone could
+// strip it to a sliver, which the storage mass of the next transaction then can't carry, and no ordinary wallet could trade or withdraw.
+const int MIN_RESERVE_VALUE = 100000000;
+// 2^31: limb size for the 128-bit products.
+const int LIMB = 2147483648;
+// 2^61 - 1: the largest reserve, share count or amount the products accept.
+const int MAX_OPERAND = 2305843009213693951;
+// Largest single swap input (keeps `amount · BPS` inside 64 bits).
+const int MAX_SWAP_INPUT = 230584300921369;
+
+state PoolState {
+    cov_id token_covid;
+    // X: KAS in the reserve, in sompi.
+    int kas_reserve;
+    // Y: kUSDT in the reserve, in base units.
+    int token_reserve;
+    int total_shares;
+    int protocol_kas;
+    int protocol_tokens;
+    // KAS the pool UTXO always keeps beyond the reserve (its storage deposit).
+    int base_value;
+    pubkey admin;
+    // The circuit breaker, fixed at genesis: the cap is `max_out_bps` of the KAS
+    // reserve, refilling at one cap per `window_len` DAA.
+    int max_out_bps;
+    int window_len;
+    // How much of the room buys gave is still KAS those buys left in the
+    // reserve: buys add what they credited, sells and removes spend it, and it
+    // lapses as the credit itself lapses. A remove moves it back to
+    // `window_out`, so KAS bought in and withdrawn again leaves no room behind.
+    int window_credit;
+    // The KAS reserve the cap is measured on. It follows the reserve down at
+    // once, and up only with claimed time, toward the reserve the pool UTXO
+    // stood at, by age / window_len. KAS that comes in at one moment (a buy,
+    // new liquidity) can't lift it until it has stayed.
+    int window_ref;
+    // The allowance used so far, in net KAS: sells add to it, buys take it
+    // down, and claimed time moves it toward zero. Nothing else forgives it,
+    // so it may sit above a cap that has shrunk. Below zero (net buying, at
+    // most one cap), sells have that much more room.
+    int window_out;
+    // Swaps and new liquidity stop while paused; withdrawals don't.
+    bool paused;
+    // May pause, nothing else.
+    pubkey guardian;
+}
+
+state PositionState {
+    cov_id token_covid;
+    int shares;
+    pubkey owner;
+}
+
+// a · b ≥ c · d for 0 ≤ a, b, c, d ≤ 2^61 - 1, without overflow.
+fn mul_ge(int a, int b, int c, int d) -> bool {
+    require(a >= 0);
+    require(b >= 0);
+    require(c >= 0);
+    require(d >= 0);
+    require(a <= MAX_OPERAND);
+    require(b <= MAX_OPERAND);
+    require(c <= MAX_OPERAND);
+    require(d <= MAX_OPERAND);
+    int a1 = a / LIMB;
+    int a0 = a % LIMB;
+    int b1 = b / LIMB;
+    int b0 = b % LIMB;
+    int c1 = c / LIMB;
+    int c0 = c % LIMB;
+    int d1 = d / LIMB;
+    int d0 = d % LIMB;
+    // a·b = l2·2^62 + l1·2^31 + l0 (and likewise r for c·d), normalized so
+    // that 0 ≤ l0, l1 < 2^31.
+    int l0 = a0 * b0;
+    int l1 = a1 * b0 + a0 * b1;
+    int l2 = a1 * b1;
+    int r0 = c0 * d0;
+    int r1 = c1 * d0 + c0 * d1;
+    int r2 = c1 * d1;
+    l1 = l1 + l0 / LIMB;
+    l0 = l0 % LIMB;
+    l2 = l2 + l1 / LIMB;
+    l1 = l1 % LIMB;
+    r1 = r1 + r0 / LIMB;
+    r0 = r0 % LIMB;
+    r2 = r2 + r1 / LIMB;
+    r1 = r1 % LIMB;
+    bool ge = l0 >= r0;
+    if (l1 != r1) {
+        ge = l1 > r1;
+    }
+    if (l2 != r2) {
+        ge = l2 > r2;
+    }
+    return ge;
+}
+
+// The reserve state: owned by this pool, not borrowable, plain kUSDT.
+fn require_reserve(KCC20State reserve, byte[32] pool_id, int amount) {
+    require(reserve.amount == amount);
+    require(reserve.owner == pool_id);
+    require(reserve.owner_scheme == OWNER_COVENANT_ID);
+    require(reserve.borrow_scheme == BORROW_DISABLED);
+    require(reserve.extension_commitment == byte[32](0x0000000000000000000000000000000000000000000000000000000000000000));
+}
+
+// The reference after `elapsed` DAA with the reserve at `reserve`: down to the
+// reserve at once, up toward it by elapsed / length of the gap, and by at most
+// its own size per window. Liquidity added to inflate the cap, and withdrawn once
+// the refill is paid, moves the reference no faster than doubling an hour.
+// Never overflows for elapsed < length.
+fn advanced_ref(int reference, int reserve, int elapsed, int length) -> int {
+    int next = reserve;
+    if (reserve > reference) {
+        int gap = reserve - reference;
+        if (gap > reference) {
+            gap = reference;
+        }
+        next = reference + gap;
+        if (elapsed < length) {
+            next = reference + elapsed * (gap / length) + elapsed * (gap % length) / length;
+        }
+    }
+    return next;
+}
+
+// `bps` of `base`, rounded down, without overflow for 0 ≤ base ≤ 2^61 - 1 and
+// bps ≤ BPS: (q·BPS + r)·bps / BPS = q·bps + r·bps/BPS.
+fn share_of(int base, int bps) -> int {
+    return base / BPS * bps + base % BPS * bps / BPS;
+}
+
+// `used` after `elapsed` DAA at `cap` per `length`: it moves toward zero, in
+// exact integers, without crossing it. Credit is kept within one cap; a
+// positive count is cut only by a `remove` that shrinks the pool. Never overflows for
+// elapsed ≤ 2 · length and 0 ≤ cap ≤ 2^61 - 1.
+fn settled_out(int used, int elapsed, int cap, int length) -> int {
+    int next = used;
+    if (next < 0 - cap) {
+        next = 0 - cap;
+    }
+    int decay = elapsed * (cap / length) + elapsed * (cap % length) / length;
+    if (next > 0) {
+        next = next - decay;
+        if (next < 0) {
+            next = 0;
+        }
+    } else if (next < 0) {
+        next = next + decay;
+        if (next > 0) {
+            next = 0;
+        }
+    }
+    return next;
+}
+
+// What is left of `credit` once `stored` (the count before time was applied)
+// has settled to `settled`: credit that lapsed with time is gone from both.
+fn credit_left(int credit, int stored, int settled) -> int {
+    int left = credit;
+    if (stored < 0) {
+        int lapsed = settled - stored;
+        left = 0;
+        if (credit > lapsed) {
+            left = credit - lapsed;
+        }
+    }
+    return left;
+}
+
+actor Pool owns PoolState {
+    // The first deposit: sets the price (kas_in : tokens). Mints kas_in shares,
+    // MIN_LIQUIDITY of them to nobody.
+    entry init(int kas_in, pubkey owner, KCC20State change_state)
+    observes token by self.token_covid {
+        inputs {
+            provider: KUSDT::KCC20,
+        }
+        outputs {
+            reserve: KUSDT::KCC20,
+            change: KUSDT::KCC20,
+        }
+    }
+    emits {
+        pool: Pool,
+        position: Position,
+    } {
+        require(!paused);
+        require(total_shares == 0);
+        require(kas_reserve == 0);
+        require(token_reserve == 0);
+        require(kas_in > MIN_LIQUIDITY);
+        require(kas_in <= MAX_OPERAND);
+        KCC20State provider = state(token.inputs.provider);
+        int tokens_in = provider.amount - change_state.amount;
+        require(tokens_in > 0);
+        require(change_state.amount >= 0);
+        byte[32] pool_id = byte[32](self.cov_id);
+
+        PoolState next_pool = {
+            token_covid: token_covid,
+            kas_reserve: kas_in,
+            token_reserve: tokens_in,
+            total_shares: kas_in,
+            protocol_kas: protocol_kas,
+            protocol_tokens: protocol_tokens,
+            base_value: base_value,
+            admin: admin,
+            max_out_bps: max_out_bps,
+            window_len: window_len,
+            window_credit: window_credit,
+            window_ref: kas_in,
+            window_out: window_out,
+            paused: paused,
+            guardian: guardian,
+        };
+        PositionState next_position = {
+            token_covid: token_covid,
+            shares: kas_in - MIN_LIQUIDITY,
+            owner: owner,
+        };
+        KCC20State next_reserve = {
+            amount: tokens_in + protocol_tokens,
+            owner: pool_id,
+            owner_scheme: OWNER_COVENANT_ID,
+            borrow_scheme: BORROW_DISABLED,
+            borrow_guard: byte[32](0x0000000000000000000000000000000000000000000000000000000000000000),
+            extension_commitment: byte[32](0x0000000000000000000000000000000000000000000000000000000000000000),
+        };
+        require token.outputs become {
+            reserve <- KUSDT::KCC20(next_reserve),
+            change <- KUSDT::KCC20(change_state),
+        };
+        require(tx.outputs[OpCovOutputIdx(token_covid, 0)].value >= MIN_RESERVE_VALUE);
+        require(pool.value == base_value + kas_in + protocol_kas);
+        unrestricted(position.value);
+        become {
+            pool <- Pool(next_pool),
+            position <- Position(next_position),
+        };
+    }
+
+    // KAS in, kUSDT out: `buyer` receives `buyer_state.amount`.
+    entry buy(int kas_in, int age_daa, KCC20State buyer_state)
+    observes token by self.token_covid {
+        inputs {
+            reserve: KUSDT::KCC20,
+        }
+        outputs {
+            reserve: KUSDT::KCC20,
+            buyer: KUSDT::KCC20,
+        }
+    }
+    emits {
+        pool: Pool,
+    } {
+        require(!paused);
+        byte[32] pool_id = byte[32](self.cov_id);
+        require_reserve(state(token.inputs.reserve), pool_id, token_reserve + protocol_tokens);
+        require(kas_in > 0);
+        require(kas_in <= MAX_SWAP_INPUT);
+        require(buyer_state.amount > 0);
+        int protocol_cut = kas_in * PROTOCOL_BPS / BPS;
+        int effective = kas_in * (BPS - FEE_BPS) / BPS;
+        int next_x = kas_reserve + kas_in - protocol_cut;
+        int next_y = token_reserve - buyer_state.amount;
+        require(next_y > 0);
+        require(next_x <= MAX_OPERAND);
+        require(mul_ge(kas_reserve + effective, next_y, kas_reserve, token_reserve));
+
+        // The circuit breaker counts the net flow: the KAS this buy adds to the
+        // reserve gives sells that much room, after what time has refilled.
+        require(age_daa >= 0);
+        require(age_daa <= 2 * window_len);
+        require(this.ageDaa >= age_daa);
+        int next_ref = advanced_ref(window_ref, kas_reserve, age_daa, window_len);
+        int cap = share_of(next_ref, max_out_bps);
+        int settled = settled_out(window_out, age_daa, cap, window_len);
+        int next_out = settled - (next_x - kas_reserve);
+        if (next_out < 0 - cap) {
+            next_out = 0 - cap;
+        }
+        // What this buy really credited, after the clamp, is what a remove can take back.
+        int next_credit = credit_left(window_credit, window_out, settled) + (settled - next_out);
+        if (next_credit > MAX_OPERAND) {
+            next_credit = MAX_OPERAND;
+        }
+
+        PoolState next_pool = {
+            token_covid: token_covid,
+            kas_reserve: next_x,
+            token_reserve: next_y,
+            total_shares: total_shares,
+            protocol_kas: protocol_kas + protocol_cut,
+            protocol_tokens: protocol_tokens,
+            base_value: base_value,
+            admin: admin,
+            max_out_bps: max_out_bps,
+            window_len: window_len,
+            window_credit: next_credit,
+            window_ref: next_ref,
+            window_out: next_out,
+            paused: paused,
+            guardian: guardian,
+        };
+        KCC20State next_reserve = {
+            amount: next_y + protocol_tokens,
+            owner: pool_id,
+            owner_scheme: OWNER_COVENANT_ID,
+            borrow_scheme: BORROW_DISABLED,
+            borrow_guard: byte[32](0x0000000000000000000000000000000000000000000000000000000000000000),
+            extension_commitment: byte[32](0x0000000000000000000000000000000000000000000000000000000000000000),
+        };
+        require token.outputs become {
+            reserve <- KUSDT::KCC20(next_reserve),
+            buyer <- KUSDT::KCC20(buyer_state),
+        };
+        require(tx.outputs[OpCovOutputIdx(token_covid, 0)].value >= MIN_RESERVE_VALUE);
+        require(pool.value == base_value + next_x + protocol_kas + protocol_cut);
+        become pool <- Pool(next_pool);
+    }
+
+    // kUSDT in (from one state, the rest returning as `change`), KAS out.
+    // `age_daa` is the breaker's clock: the DAA that has passed since the pool
+    // UTXO was accepted, at most its real age and at most two windows. A swap
+    // that claims less only refills less, so nothing is gained by claiming low.
+    entry sell(int kas_out, int age_daa, KCC20State change_state)
+    observes token by self.token_covid {
+        inputs {
+            reserve: KUSDT::KCC20,
+            payer: KUSDT::KCC20,
+        }
+        outputs {
+            reserve: KUSDT::KCC20,
+            change: KUSDT::KCC20,
+        }
+    }
+    emits {
+        pool: Pool,
+    } {
+        require(!paused);
+        byte[32] pool_id = byte[32](self.cov_id);
+        require_reserve(state(token.inputs.reserve), pool_id, token_reserve + protocol_tokens);
+        KCC20State payer = state(token.inputs.payer);
+        int tokens_in = payer.amount - change_state.amount;
+        require(change_state.amount >= 0);
+        require(tokens_in > 0);
+        require(tokens_in <= MAX_SWAP_INPUT);
+        require(kas_out > 0);
+        int protocol_cut = tokens_in * PROTOCOL_BPS / BPS;
+        int effective = tokens_in * (BPS - FEE_BPS) / BPS;
+        int next_x = kas_reserve - kas_out;
+        int next_y = token_reserve + tokens_in - protocol_cut;
+        require(next_x > 0);
+        require(next_y <= MAX_OPERAND);
+        require(mul_ge(token_reserve + effective, next_x, token_reserve, kas_reserve));
+
+        // Consensus holds this input back until the pool UTXO is `age_daa` old.
+        require(age_daa >= 0);
+        require(age_daa <= 2 * window_len);
+        require(this.ageDaa >= age_daa);
+        int next_ref = advanced_ref(window_ref, kas_reserve, age_daa, window_len);
+        int cap = share_of(next_ref, max_out_bps);
+        int settled = settled_out(window_out, age_daa, cap, window_len);
+        int next_out = settled + kas_out;
+        require(next_out <= cap);
+        // A sell draws on recent buys' credit first: that KAS has now left.
+        int next_credit = credit_left(window_credit, window_out, settled) - kas_out;
+        if (next_credit < 0) {
+            next_credit = 0;
+        }
+        if (next_x < next_ref) {
+            next_ref = next_x;
+        }
+
+        PoolState next_pool = {
+            token_covid: token_covid,
+            kas_reserve: next_x,
+            token_reserve: next_y,
+            total_shares: total_shares,
+            protocol_kas: protocol_kas,
+            protocol_tokens: protocol_tokens + protocol_cut,
+            base_value: base_value,
+            admin: admin,
+            max_out_bps: max_out_bps,
+            window_len: window_len,
+            window_credit: next_credit,
+            window_ref: next_ref,
+            window_out: next_out,
+            paused: paused,
+            guardian: guardian,
+        };
+        KCC20State next_reserve = {
+            amount: next_y + protocol_tokens + protocol_cut,
+            owner: pool_id,
+            owner_scheme: OWNER_COVENANT_ID,
+            borrow_scheme: BORROW_DISABLED,
+            borrow_guard: byte[32](0x0000000000000000000000000000000000000000000000000000000000000000),
+            extension_commitment: byte[32](0x0000000000000000000000000000000000000000000000000000000000000000),
+        };
+        require token.outputs become {
+            reserve <- KUSDT::KCC20(next_reserve),
+            change <- KUSDT::KCC20(change_state),
+        };
+        require(tx.outputs[OpCovOutputIdx(token_covid, 0)].value >= MIN_RESERVE_VALUE);
+        require(pool.value == base_value + next_x + protocol_kas);
+        become pool <- Pool(next_pool);
+    }
+
+    // Like `sell`, spending the whole state (no change output).
+    entry sell_all(int kas_out, int age_daa)
+    observes token by self.token_covid {
+        inputs {
+            reserve: KUSDT::KCC20,
+            payer: KUSDT::KCC20,
+        }
+        outputs {
+            reserve: KUSDT::KCC20,
+        }
+    }
+    emits {
+        pool: Pool,
+    } {
+        require(!paused);
+        byte[32] pool_id = byte[32](self.cov_id);
+        require_reserve(state(token.inputs.reserve), pool_id, token_reserve + protocol_tokens);
+        KCC20State payer = state(token.inputs.payer);
+        int tokens_in = payer.amount;
+        require(tokens_in > 0);
+        require(tokens_in <= MAX_SWAP_INPUT);
+        require(kas_out > 0);
+        int protocol_cut = tokens_in * PROTOCOL_BPS / BPS;
+        int effective = tokens_in * (BPS - FEE_BPS) / BPS;
+        int next_x = kas_reserve - kas_out;
+        int next_y = token_reserve + tokens_in - protocol_cut;
+        require(next_x > 0);
+        require(next_y <= MAX_OPERAND);
+        require(mul_ge(token_reserve + effective, next_x, token_reserve, kas_reserve));
+
+        // Consensus holds this input back until the pool UTXO is `age_daa` old.
+        require(age_daa >= 0);
+        require(age_daa <= 2 * window_len);
+        require(this.ageDaa >= age_daa);
+        int next_ref = advanced_ref(window_ref, kas_reserve, age_daa, window_len);
+        int cap = share_of(next_ref, max_out_bps);
+        int settled = settled_out(window_out, age_daa, cap, window_len);
+        int next_out = settled + kas_out;
+        require(next_out <= cap);
+        // A sell draws on recent buys' credit first: that KAS has now left.
+        int next_credit = credit_left(window_credit, window_out, settled) - kas_out;
+        if (next_credit < 0) {
+            next_credit = 0;
+        }
+        if (next_x < next_ref) {
+            next_ref = next_x;
+        }
+
+        PoolState next_pool = {
+            token_covid: token_covid,
+            kas_reserve: next_x,
+            token_reserve: next_y,
+            total_shares: total_shares,
+            protocol_kas: protocol_kas,
+            protocol_tokens: protocol_tokens + protocol_cut,
+            base_value: base_value,
+            admin: admin,
+            max_out_bps: max_out_bps,
+            window_len: window_len,
+            window_credit: next_credit,
+            window_ref: next_ref,
+            window_out: next_out,
+            paused: paused,
+            guardian: guardian,
+        };
+        KCC20State next_reserve = {
+            amount: next_y + protocol_tokens + protocol_cut,
+            owner: pool_id,
+            owner_scheme: OWNER_COVENANT_ID,
+            borrow_scheme: BORROW_DISABLED,
+            borrow_guard: byte[32](0x0000000000000000000000000000000000000000000000000000000000000000),
+            extension_commitment: byte[32](0x0000000000000000000000000000000000000000000000000000000000000000),
+        };
+        require token.outputs become {
+            reserve <- KUSDT::KCC20(next_reserve),
+        };
+        require(tx.outputs[OpCovOutputIdx(token_covid, 0)].value >= MIN_RESERVE_VALUE);
+        require(pool.value == base_value + next_x + protocol_kas);
+        become pool <- Pool(next_pool);
+    }
+
+    // Adds liquidity in proportion: `shares` may not exceed what either side
+    // buys at the current reserves (shares · X ≤ kas_in · S, shares · Y ≤ tokens · S).
+    entry add(int kas_in, int shares, pubkey owner, KCC20State change_state)
+    observes token by self.token_covid {
+        inputs {
+            reserve: KUSDT::KCC20,
+            provider: KUSDT::KCC20,
+        }
+        outputs {
+            reserve: KUSDT::KCC20,
+            change: KUSDT::KCC20,
+        }
+    }
+    emits {
+        pool: Pool,
+        position: Position,
+    } {
+        require(!paused);
+        require(total_shares > 0);
+        byte[32] pool_id = byte[32](self.cov_id);
+        require_reserve(state(token.inputs.reserve), pool_id, token_reserve + protocol_tokens);
+        KCC20State provider = state(token.inputs.provider);
+        int tokens_in = provider.amount - change_state.amount;
+        require(change_state.amount >= 0);
+        require(tokens_in > 0);
+        require(kas_in > 0);
+        require(shares > 0);
+        require(mul_ge(kas_in, total_shares, shares, kas_reserve));
+        require(mul_ge(tokens_in, total_shares, shares, token_reserve));
+        int next_x = kas_reserve + kas_in;
+        int next_y = token_reserve + tokens_in;
+        int next_shares = total_shares + shares;
+        require(next_x <= MAX_OPERAND);
+        require(next_y <= MAX_OPERAND);
+        require(next_shares <= MAX_OPERAND);
+
+        PoolState next_pool = {
+            token_covid: token_covid,
+            kas_reserve: next_x,
+            token_reserve: next_y,
+            total_shares: next_shares,
+            protocol_kas: protocol_kas,
+            protocol_tokens: protocol_tokens,
+            base_value: base_value,
+            admin: admin,
+            max_out_bps: max_out_bps,
+            window_len: window_len,
+            window_credit: window_credit,
+            window_ref: window_ref,
+            window_out: window_out,
+            paused: paused,
+            guardian: guardian,
+        };
+        PositionState next_position = {
+            token_covid: token_covid,
+            shares: shares,
+            owner: owner,
+        };
+        KCC20State next_reserve = {
+            amount: next_y + protocol_tokens,
+            owner: pool_id,
+            owner_scheme: OWNER_COVENANT_ID,
+            borrow_scheme: BORROW_DISABLED,
+            borrow_guard: byte[32](0x0000000000000000000000000000000000000000000000000000000000000000),
+            extension_commitment: byte[32](0x0000000000000000000000000000000000000000000000000000000000000000),
+        };
+        require token.outputs become {
+            reserve <- KUSDT::KCC20(next_reserve),
+            change <- KUSDT::KCC20(change_state),
+        };
+        require(tx.outputs[OpCovOutputIdx(token_covid, 0)].value >= MIN_RESERVE_VALUE);
+        require(pool.value == base_value + next_x + protocol_kas);
+        unrestricted(position.value);
+        become {
+            pool <- Pool(next_pool),
+            position <- Position(next_position),
+        };
+    }
+
+    // Burns a position: at most its share of each reserve
+    // (kas_out · S ≤ shares · X, tokens · S ≤ shares · Y). Open while paused,
+    // so liquidity providers can always leave.
+    entry remove(int kas_out, KCC20State receiver_state)
+    observes token by self.token_covid {
+        inputs {
+            reserve: KUSDT::KCC20,
+        }
+        outputs {
+            reserve: KUSDT::KCC20,
+            receiver: KUSDT::KCC20,
+        }
+    }
+    consumes {
+        position: Position,
+    }
+    emits {
+        pool: Pool,
+    } {
+        byte[32] pool_id = byte[32](self.cov_id);
+        require_reserve(state(token.inputs.reserve), pool_id, token_reserve + protocol_tokens);
+        int shares = position.shares;
+        require(shares > 0);
+        require(kas_out >= 0);
+        require(receiver_state.amount >= 0);
+        require(mul_ge(shares, kas_reserve, kas_out, total_shares));
+        require(mul_ge(shares, token_reserve, receiver_state.amount, total_shares));
+        int next_x = kas_reserve - kas_out;
+        int next_y = token_reserve - receiver_state.amount;
+        int next_shares = total_shares - shares;
+        // The unowned MIN_LIQUIDITY shares always remain.
+        require(next_shares >= MIN_LIQUIDITY);
+        require(next_x > 0);
+        require(next_y > 0);
+        // KAS leaving is taken to be KAS buys recently brought, as far as it can
+        // be. Never a reason to refuse: it only leaves sells less room.
+        int reclaimed = kas_out;
+        if (reclaimed > window_credit) {
+            reclaimed = window_credit;
+        }
+        int next_out = window_out + reclaimed;
+        int next_ref = window_ref;
+        if (next_x < next_ref) {
+            next_ref = next_x;
+            // The allowance a smaller pool refills is smaller too: a count left at
+            // the larger pool's size would shut sells for many windows (a large
+            // sell, then a large exit). It is cut to two caps of the smaller pool:
+            // that leaves no room, sells open again within two windows, and a
+            // reference growing back can't refill faster than the stated rate
+            // (one cap would let it, while the count is still within reach).
+            int next_limit = 2 * share_of(next_ref, max_out_bps);
+            if (next_out > next_limit) {
+                next_out = next_limit;
+            }
+        }
+
+        PoolState next_pool = {
+            token_covid: token_covid,
+            kas_reserve: next_x,
+            token_reserve: next_y,
+            total_shares: next_shares,
+            protocol_kas: protocol_kas,
+            protocol_tokens: protocol_tokens,
+            base_value: base_value,
+            admin: admin,
+            max_out_bps: max_out_bps,
+            window_len: window_len,
+            window_credit: window_credit - reclaimed,
+            window_ref: next_ref,
+            window_out: next_out,
+            paused: paused,
+            guardian: guardian,
+        };
+        KCC20State next_reserve = {
+            amount: next_y + protocol_tokens,
+            owner: pool_id,
+            owner_scheme: OWNER_COVENANT_ID,
+            borrow_scheme: BORROW_DISABLED,
+            borrow_guard: byte[32](0x0000000000000000000000000000000000000000000000000000000000000000),
+            extension_commitment: byte[32](0x0000000000000000000000000000000000000000000000000000000000000000),
+        };
+        require token.outputs become {
+            reserve <- KUSDT::KCC20(next_reserve),
+            receiver <- KUSDT::KCC20(receiver_state),
+        };
+        require(tx.outputs[OpCovOutputIdx(token_covid, 0)].value >= MIN_RESERVE_VALUE);
+        require(pool.value == base_value + next_x + protocol_kas);
+        become pool <- Pool(next_pool);
+    }
+
+    // The admin takes the accrued protocol fees: the KAS leaves the pool UTXO
+    // (to whatever outputs the admin signs for), the tokens go to `fees`.
+    entry collect(sig admin_signature, KCC20State fee_state)
+    observes token by self.token_covid {
+        inputs {
+            reserve: KUSDT::KCC20,
+        }
+        outputs {
+            reserve: KUSDT::KCC20,
+            fees: KUSDT::KCC20,
+        }
+    }
+    emits {
+        pool: Pool,
+    } {
+        require(checkSig(admin_signature, admin));
+        byte[32] pool_id = byte[32](self.cov_id);
+        require_reserve(state(token.inputs.reserve), pool_id, token_reserve + protocol_tokens);
+        require(fee_state.amount == protocol_tokens);
+
+        PoolState next_pool = {
+            token_covid: token_covid,
+            kas_reserve: kas_reserve,
+            token_reserve: token_reserve,
+            total_shares: total_shares,
+            protocol_kas: 0,
+            protocol_tokens: 0,
+            base_value: base_value,
+            admin: admin,
+            max_out_bps: max_out_bps,
+            window_len: window_len,
+            window_credit: window_credit,
+            window_ref: window_ref,
+            window_out: window_out,
+            paused: paused,
+            guardian: guardian,
+        };
+        KCC20State next_reserve = {
+            amount: token_reserve,
+            owner: pool_id,
+            owner_scheme: OWNER_COVENANT_ID,
+            borrow_scheme: BORROW_DISABLED,
+            borrow_guard: byte[32](0x0000000000000000000000000000000000000000000000000000000000000000),
+            extension_commitment: byte[32](0x0000000000000000000000000000000000000000000000000000000000000000),
+        };
+        require token.outputs become {
+            reserve <- KUSDT::KCC20(next_reserve),
+            fees <- KUSDT::KCC20(fee_state),
+        };
+        require(tx.outputs[OpCovOutputIdx(token_covid, 0)].value >= MIN_RESERVE_VALUE);
+        require(pool.value == base_value + kas_reserve);
+        become pool <- Pool(next_pool);
+    }
+
+    // The guardian stops swaps and new liquidity. Withdrawals stay open; only
+    // the admin resumes (`unpause`).
+    entry pause(sig guardian_signature) emits {
+        pool: Pool,
+    } {
+        // No kUSDT may move in this transaction: the pool's presence alone
+        // would authorize spending its reserve.
+        require(OpCovInputCount(token_covid) == 0);
+        require(checkSig(guardian_signature, guardian));
+        PoolState next_pool = {
+            token_covid: token_covid,
+            kas_reserve: kas_reserve,
+            token_reserve: token_reserve,
+            total_shares: total_shares,
+            protocol_kas: protocol_kas,
+            protocol_tokens: protocol_tokens,
+            base_value: base_value,
+            admin: admin,
+            max_out_bps: max_out_bps,
+            window_len: window_len,
+            window_credit: window_credit,
+            window_ref: window_ref,
+            window_out: window_out,
+            paused: true,
+            guardian: guardian,
+        };
+        require(pool.value == self.value);
+        become pool <- Pool(next_pool);
+    }
+
+    // The admin resumes swaps and new liquidity.
+    entry unpause(sig admin_signature) emits {
+        pool: Pool,
+    } {
+        require(OpCovInputCount(token_covid) == 0);
+        require(checkSig(admin_signature, admin));
+        PoolState next_pool = {
+            token_covid: token_covid,
+            kas_reserve: kas_reserve,
+            token_reserve: token_reserve,
+            total_shares: total_shares,
+            protocol_kas: protocol_kas,
+            protocol_tokens: protocol_tokens,
+            base_value: base_value,
+            admin: admin,
+            max_out_bps: max_out_bps,
+            window_len: window_len,
+            window_credit: window_credit,
+            window_ref: window_ref,
+            window_out: window_out,
+            paused: false,
+            guardian: guardian,
+        };
+        require(pool.value == self.value);
+        become pool <- Pool(next_pool);
+    }
+
+    // The admin hands the fee key, the guardian key or both to other keys.
+    entry set_keys(pubkey new_admin, pubkey new_guardian, sig admin_signature) emits {
+        pool: Pool,
+    } {
+        require(OpCovInputCount(token_covid) == 0);
+        require(checkSig(admin_signature, admin));
+        PoolState next_pool = {
+            token_covid: token_covid,
+            kas_reserve: kas_reserve,
+            token_reserve: token_reserve,
+            total_shares: total_shares,
+            protocol_kas: protocol_kas,
+            protocol_tokens: protocol_tokens,
+            base_value: base_value,
+            admin: new_admin,
+            max_out_bps: max_out_bps,
+            window_len: window_len,
+            window_credit: window_credit,
+            window_ref: window_ref,
+            window_out: window_out,
+            paused: paused,
+            guardian: new_guardian,
+        };
+        require(pool.value == self.value);
+        become pool <- Pool(next_pool);
+    }
+}
+
+actor Position owns PositionState {
+    entry transfer(pubkey new_owner, sig owner_signature) emits {
+        next: Position,
+    } {
+        // A position is in the pool's family, so its presence alone would
+        // authorize spending the pool's reserve: no kUSDT may move here.
+        require(OpCovInputCount(token_covid) == 0);
+        require(checkSig(owner_signature, owner));
+        PositionState next_position = {
+            token_covid: token_covid,
+            shares: shares,
+            owner: new_owner,
+        };
+        unrestricted(next.value);
+        become next <- Position(next_position);
+    }
+
+    // Burnt by Pool.remove, with the owner's signature.
+    delegate redeem(sig owner_signature) consumes {
+        leader: Pool,
+    } {
+        require(checkSig(owner_signature, owner));
+    }
+}
+
+app KasPool {
+    actor Pool;
+    actor Position;
+}

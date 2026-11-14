@@ -1,0 +1,15 @@
+node_modules/
+artifacts/
+cache/
+typechain-types/
+coverage/
+coverage.json
+gasReporterOutput.json
+# Dry runs on the in-process network
+deployments/hardhat.json
+deployments/localhost.json
+config/*.json
+!config/*.example.json
+!config/dryrun.json
+# A deploy that stopped half way (scripts/deploy.ts resumes from it)
+deployments/*.partial.json

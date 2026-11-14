@@ -1,0 +1,300 @@
+@import "tailwindcss";
+
+/* Figtree (SIL OFL 1.1, @fontsource-variable/figtree), bundled with the extension:
+   the latin and latin-ext subsets. No remote fonts (the CSP forbids them). */
+@font-face {
+  font-family: 'Figtree Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../../node_modules/@fontsource-variable/figtree/files/figtree-latin-ext-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Figtree Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../../node_modules/@fontsource-variable/figtree/files/figtree-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
+/* The Trestly palette, as in the web app (bridge/web/src/styles.css), from the
+   brand board: a near-black page, quiet surfaces, mint for what to press, amber
+   for warnings and rose for errors. Dark first; light through html:not(.dark). */
+
+@theme {
+  /* ── Light mode ───────────────────────────────────────────────────────── */
+  --color-ink-950:  #f2f7fd;   /* page                                      */
+  --color-ink-900:  #ffffff;   /* card                                      */
+  --color-ink-800:  #eef3f7;   /* input, tile                               */
+  --color-ink-700:  #e2e9ef;   /* line                                      */
+  --color-ink-600:  #d3dce3;
+  --color-ink-500:  #b4c0c8;
+  --color-ink-400:  #8a98a0;
+
+  /* pearl-* = foreground. The names predate the brand: they are roles.     */
+  --color-pearl-50:  #ffffff;
+  --color-pearl-100: #f6f9fb;
+  --color-pearl-200: #0b1f1b;   /* primary text                             */
+  --color-pearl-300: #1b2f2c;
+  --color-pearl-400: #33474a;
+  --color-pearl-500: #55686c;   /* muted text                               */
+  --color-pearl-600: #66797d;
+  --color-pearl-700: #76888c;
+  --color-pearl-800: #a9b7bc;
+  --color-pearl-900: #d3dce1;
+
+  /* Semantic accents */
+  --color-mint:     #2ff0c8;    /* filled buttons                           */
+  --color-mint-hover: #55f6d6;
+  --color-on-mint:  #06211c;    /* text on them, in both modes              */
+  --color-accent:   #077a66;    /* mint as text or a thin line              */
+  --color-line:     rgba(11, 31, 27, .09);
+  --color-seg-on:   #ffffff;
+  --color-ok:       #077a66;
+  --color-amber:    #b45309;
+  --color-rose:     #b91c1c;
+  /* Amber and rose for text on their own tint: the same hue, set towards the
+     ink so small text stays readable in both themes. */
+  --color-amber-ink: color-mix(in srgb, var(--color-amber) 80%, var(--color-pearl-200));
+  --color-rose-ink:  color-mix(in srgb, var(--color-rose) 85%, var(--color-pearl-200));
+
+  --font-sans: 'Figtree Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, monospace;
+}
+
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+html.dark {
+  --color-ink-950: #051316;
+  --color-ink-900: #0e1a1c;
+  --color-ink-800: #152a2d;
+  --color-ink-700: #1b2c2f;
+  --color-ink-600: #2a3f42;
+  --color-ink-500: #3a5154;
+  --color-ink-400: #566c6f;
+
+  --color-pearl-200: #f4f8f7;
+  --color-pearl-300: #e3eae9;
+  --color-pearl-400: #c3cecd;
+  --color-pearl-500: #9aa9a9;
+  --color-pearl-600: #859595;
+  --color-pearl-700: #7a8a8a;
+  --color-pearl-800: #445557;
+  --color-pearl-900: #2a3a3c;
+
+  --color-mint:    #45f8d1;
+  --color-mint-hover: #6ffadc;
+  --color-accent:  #45f8d1;
+  --color-line:    rgba(255, 255, 255, .07);
+  --color-seg-on:  #24393c;
+  --color-ok:      #45f8d1;
+  --color-amber:   #f59e0b;
+  --color-rose:    #f87171;
+  color-scheme: dark;
+}
+html { color-scheme: light; }
+
+/* Element defaults (after Tailwind's preflight). The components below are in
+   their own layer, so a utility class on an element still wins over them. */
+@layer base {
+  * { box-sizing: border-box; }
+  html, body, #root {
+    margin: 0;
+    background-color: var(--color-ink-950);
+    color: var(--color-pearl-200);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  body { font-size: 14px; line-height: 1.45; }
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
+  :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+  input[type=checkbox] { accent-color: var(--color-accent); width: 16px; height: 16px; flex-shrink: 0; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--color-ink-600); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--color-ink-500); }
+}
+
+@layer utilities {
+  .tnum { font-variant-numeric: tabular-nums; }
+  .mono { font-family: var(--font-mono); }
+}
+
+@layer components {
+.popup-shell { width: 400px; height: 600px; overflow: hidden; display: flex; flex-direction: column; position: relative; }
+.window-shell { width: 100%; height: 100vh; overflow: hidden; display: flex; flex-direction: column; position: relative; }
+
+/* ── Header, network button, banner ──────────────────────────────────────── */
+.topbar { display: flex; align-items: center; gap: 4px; height: 52px; padding: 0 10px 0 16px; flex-shrink: 0; border-bottom: 1px solid var(--color-line); }
+.topbar.with-back { padding-left: 8px; }
+.topbar-title { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; color: var(--color-pearl-200); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.net-btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 7px 0 10px; margin-right: 2px; border-radius: 10px; border: 1px solid var(--color-ink-600); background-color: transparent; font-size: 12.5px; font-weight: 600; color: var(--color-pearl-300); white-space: nowrap; transition: background-color .15s ease, border-color .15s ease; }
+button.net-btn:hover { background-color: var(--color-ink-800); border-color: var(--color-ink-600); }
+.net-btn svg { color: var(--color-pearl-500); }
+.net-btn.static { padding-right: 10px; }
+.dot { width: 8px; height: 8px; border-radius: 9999px; flex-shrink: 0; display: inline-block; }
+.dot-test { background-color: var(--color-amber); }
+.dot-local { background-color: var(--color-pearl-500); }
+.dot-main { background-color: var(--color-accent); }
+
+.banner {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 26px; padding: 3px 16px; flex-shrink: 0;
+  font-size: 12px; font-weight: 500; text-align: center;
+  border-bottom: 1px solid var(--color-line);
+}
+.banner-test { background-color: color-mix(in srgb, var(--color-amber) 9%, var(--color-ink-950)); color: var(--color-amber-ink); border-color: color-mix(in srgb, var(--color-amber) 20%, var(--color-ink-700)); }
+.banner-local, .banner-info { background-color: var(--color-ink-800); color: var(--color-pearl-400); }
+
+/* ── Bottom navigation ───────────────────────────────────────────────────── */
+.bottom-nav { display: flex; flex-shrink: 0; padding: 5px 4px 6px; border-top: 1px solid var(--color-line); background-color: var(--color-ink-950); }
+.nav-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  font-size: 11px; font-weight: 500; color: var(--color-pearl-500);
+  transition: color .15s ease;
+}
+.nav-item:hover { color: var(--color-pearl-300); }
+.nav-icon { display: flex; align-items: center; justify-content: center; width: 46px; height: 26px; border-radius: 9999px; transition: background-color .15s ease, color .15s ease; }
+.nav-item.on { color: var(--color-pearl-200); font-weight: 600; }
+.nav-item.on .nav-icon { background-color: color-mix(in srgb, var(--color-mint) 16%, transparent); color: var(--color-accent); }
+
+/* ── Surfaces ────────────────────────────────────────────────────────────── */
+.card { background-color: var(--color-ink-900); border: 1px solid var(--color-line); border-radius: 18px; }
+.inset { background-color: var(--color-ink-800); border-radius: 12px; }
+
+.hero-card { position: relative; border-radius: 20px; border: 1px solid var(--color-line); background-color: var(--color-ink-900); }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 44px; padding: 0 16px; border-radius: 12px;
+  font-size: 14px; font-weight: 600; white-space: nowrap;
+  border: 1px solid transparent;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .12s ease, opacity .15s ease;
+}
+.btn:active:not(:disabled) { transform: scale(0.98); }
+.btn:disabled { opacity: .45; }
+.btn-lg { height: 48px; font-size: 14.5px; }
+.btn-sm { height: 32px; padding: 0 12px; border-radius: 10px; font-size: 13px; gap: 6px; }
+.btn-primary { background-color: var(--color-mint); color: var(--color-on-mint); }
+.btn-primary:hover:not(:disabled) { background-color: var(--color-mint-hover); }
+.btn-secondary { background-color: transparent; color: var(--color-pearl-200); border-color: color-mix(in srgb, var(--color-pearl-200) 42%, transparent); }
+.btn-secondary:hover:not(:disabled) { background-color: color-mix(in srgb, var(--color-pearl-200) 7%, transparent); border-color: var(--color-pearl-200); }
+.btn-danger { background-color: color-mix(in srgb, var(--color-rose) 6%, var(--color-ink-900)); color: var(--color-rose-ink); border-color: color-mix(in srgb, var(--color-rose) 26%, var(--color-ink-700)); }
+.btn-danger:hover:not(:disabled) { background-color: color-mix(in srgb, var(--color-rose) 11%, var(--color-ink-900)); }
+.btn-quiet { background-color: transparent; color: var(--color-pearl-400); }
+.btn-quiet:hover:not(:disabled) { background-color: var(--color-ink-800); color: var(--color-pearl-200); }
+
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 32px; height: 32px; border-radius: 9999px;
+  color: var(--color-pearl-400);
+  transition: background-color .15s ease, color .15s ease;
+}
+.icon-btn:hover:not(:disabled) { background-color: var(--color-ink-800); color: var(--color-pearl-200); }
+.icon-btn:disabled { opacity: .45; }
+.icon-btn-sm { width: 26px; height: 26px; }
+
+/* ── Fields ──────────────────────────────────────────────────────────────── */
+.field { width: 100%; height: 44px; padding: 0 12px; background-color: var(--color-ink-800); border: 1px solid transparent; border-radius: 12px; font-size: 14px; color: var(--color-pearl-200); transition: border-color .15s ease; }
+textarea.field { height: auto; padding: 10px 12px; line-height: 1.5; resize: none; }
+.field:focus { outline: none; border-color: var(--color-accent); }
+.field::placeholder { color: var(--color-pearl-700); }
+.field.invalid { border-color: color-mix(in srgb, var(--color-rose) 55%, var(--color-ink-700)); }
+
+/* The big amount box: the number, the asset, Max. */
+.amount-box { display: flex; align-items: center; gap: 8px; height: 56px; padding: 0 10px 0 14px; background-color: var(--color-ink-800); border: 1px solid transparent; border-radius: 14px; transition: border-color .15s ease; }
+.amount-box:focus-within { border-color: var(--color-accent); }
+.amount-input {
+  flex: 1; min-width: 0; height: 100%;
+  background: transparent; border: 0; outline: none; padding: 0;
+  font-size: 22px; font-weight: 600; color: var(--color-pearl-200);
+  font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+}
+.amount-input::placeholder { color: var(--color-pearl-800); }
+.amount-input:focus-visible { outline: none; }
+.max-btn { height: 26px; padding: 0 9px; border-radius: 8px; flex-shrink: 0; font-size: 12px; font-weight: 600; background-color: transparent; color: var(--color-accent); border: 0; transition: background-color .15s ease; }
+.max-btn:hover:not(:disabled) { background-color: color-mix(in srgb, var(--color-mint) 12%, transparent); }
+
+/* Swap / bridge panels: "You pay" over "You receive", with the flip button between them. */
+.panel { background-color: var(--color-ink-800); border: 1px solid transparent; border-radius: 16px; padding: 10px 12px; }
+.panel-amount { flex: 1; min-width: 0; font-size: 22px; font-weight: 600; color: var(--color-pearl-200); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.flip-btn { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 1; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 12px; background-color: var(--color-ink-900); color: var(--color-pearl-300); border: 0; box-shadow: 0 0 0 4px var(--color-ink-950); transition: background-color .15s ease, color .15s ease; }
+.flip-btn:hover { background-color: var(--color-ink-800); color: var(--color-accent); }
+.flip-btn:active { transform: translate(-50%, -50%) scale(0.95); }
+.token-chip { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; height: 32px; padding: 0 11px 0 5px; border-radius: 9999px; background-color: var(--color-ink-900); border: 0; font-size: 13px; font-weight: 600; color: var(--color-pearl-200); }
+
+/* ── Segmented control: the chosen option is filled solid ───────────────── */
+.seg { display: flex; gap: 3px; padding: 3px; background-color: var(--color-ink-800); border: 0; border-radius: 12px; }
+.seg-opt {
+  flex: 1; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 32px; padding: 0 10px; border-radius: 9px;
+  font-size: 13px; font-weight: 500; color: var(--color-pearl-500); white-space: nowrap;
+  transition: background-color .15s ease, color .15s ease;
+}
+.seg-opt:hover:not(.on):not(:disabled) { color: var(--color-pearl-200); background-color: color-mix(in srgb, var(--color-pearl-200) 5%, transparent); }
+.seg-opt.on { background-color: var(--color-seg-on); color: var(--color-pearl-200); font-weight: 600; box-shadow: inset 0 0 0 1px var(--color-line); }
+.seg-opt:disabled { opacity: .45; }
+.seg-sm { padding: 2px; border-radius: 10px; }
+.seg-sm .seg-opt { height: 26px; padding: 0 8px; border-radius: 8px; font-size: 12px; }
+
+/* A choice drawn as a card (assets, networks): the chosen one has a solid ink outline and a check. */
+.choice { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 10px 12px; border-radius: 14px; background-color: var(--color-ink-800); border: 1px solid transparent; transition: border-color .15s ease, background-color .15s ease; }
+button.choice:hover:not(.on):not(:disabled) { border-color: var(--color-ink-600); }
+.choice.on { border-color: var(--color-accent); }
+.choice:disabled { cursor: not-allowed; background-color: color-mix(in srgb, var(--color-ink-800) 70%, var(--color-ink-900)); }
+.check-badge { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 20px; height: 20px; border-radius: 9999px; background-color: var(--color-mint); color: var(--color-on-mint); }
+
+/* ── Notices and pills ───────────────────────────────────────────────────── */
+.notice { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; font-size: 12.5px; line-height: 1.45; border: 1px solid transparent; }
+.notice svg { flex-shrink: 0; margin-top: 1px; }
+.notice-info { background-color: var(--color-ink-800); color: var(--color-pearl-400); }
+.notice-warn { background-color: color-mix(in srgb, var(--color-amber) 8%, var(--color-ink-900)); color: var(--color-amber-ink); border-color: color-mix(in srgb, var(--color-amber) 22%, var(--color-ink-700)); }
+.notice-error { background-color: color-mix(in srgb, var(--color-rose) 6%, var(--color-ink-900)); color: var(--color-rose-ink); border-color: color-mix(in srgb, var(--color-rose) 22%, var(--color-ink-700)); }
+
+.pill { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.pill-neutral { background-color: var(--color-ink-800); color: var(--color-pearl-400); }
+.pill-done { background-color: color-mix(in srgb, var(--color-mint) 14%, transparent); color: var(--color-accent); }
+.pill-outline { border: 1px solid var(--color-ink-600); color: var(--color-pearl-400); }
+.pill-warn { background-color: color-mix(in srgb, var(--color-amber) 13%, transparent); color: var(--color-amber-ink); }
+.pill-error { background-color: color-mix(in srgb, var(--color-rose) 11%, transparent); color: var(--color-rose-ink); }
+
+/* ── Lists (settings, activity) ──────────────────────────────────────────── */
+.list { background-color: var(--color-ink-900); border: 1px solid var(--color-line); border-radius: 16px; overflow: hidden; }
+.list > * + * { border-top: 1px solid var(--color-line); }
+.list-row {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  min-height: 48px; padding: 8px 14px; text-align: left;
+  font-size: 14px; color: var(--color-pearl-200);
+  transition: background-color .15s ease;
+}
+button.list-row:hover:not(:disabled), a.list-row:hover { background-color: var(--color-ink-800); }
+button.list-row:disabled { opacity: .5; }
+.list-icon { color: var(--color-pearl-500); flex-shrink: 0; }
+
+/* Address chip: a short address with its copy button. */
+.chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; height: 28px; padding: 0 3px 0 10px; border-radius: 9999px; background-color: var(--color-ink-800); border: 0; font-family: var(--font-mono); font-size: 12px; color: var(--color-pearl-300); }
+
+/* Round badge behind an icon (activity rows, success). */
+.icon-badge { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 9999px; background-color: var(--color-ink-800); color: var(--color-pearl-400); }
+.icon-badge-solid { background-color: var(--color-mint); color: var(--color-on-mint); }
+
+/* ── Motion, loading ─────────────────────────────────────────────────────── */
+@keyframes fade-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+.fade-in { animation: fade-in .2s ease both; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin .8s linear infinite; }
+.skeleton {
+  display: block; border-radius: 6px;
+  background: linear-gradient(90deg, var(--color-ink-800) 25%, var(--color-ink-700) 50%, var(--color-ink-800) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .fade-in, .spin, .skeleton { animation: none; } }
+
+.toast { padding: 8px 14px; border-radius: 12px; background-color: var(--color-mint); color: var(--color-on-mint); font-size: 12.5px; font-weight: 600; box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.35); }
+}

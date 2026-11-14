@@ -1,0 +1,21 @@
+{
+  "_comment": "In-process hardhat network only. The addresses below are placeholders nobody holds keys for.",
+  "deployMockUsdt": true,
+  "mockDecimals": 18,
+  "signers": [
+    "0x1111111111111111111111111111111111111111",
+    "0x2222222222222222222222222222222222222222",
+    "0x3333333333333333333333333333333333333333",
+    "0x4444444444444444444444444444444444444444",
+    "0x5555555555555555555555555555555555555555"
+  ],
+  "guardian": "0x6666666666666666666666666666666666666666",
+  "owner": "0x7777777777777777777777777777777777777777",
+  "feeBps": 50,
+  "minDepositFee": "500000",
+  "minReleaseFee": "500000",
+  "minDeposit": "10000000",
+  "maxDeposit": "100000000000",
+  "releaseCapacity": "250000000000",
+  "releaseRefillPerSecond": "2893518"
+}

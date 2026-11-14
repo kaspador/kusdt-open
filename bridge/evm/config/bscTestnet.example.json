@@ -1,0 +1,15 @@
+{
+  "_comment": "SPEC §8 defaults. Fill in the 5 signers, the guardian and the owner, then copy to config/bscTestnet.json.",
+  "deployMockUsdt": true,
+  "mockDecimals": 18,
+  "signers": ["0x0000000000000000000000000000000000000000", "0x0000000000000000000000000000000000000000", "0x0000000000000000000000000000000000000000", "0x0000000000000000000000000000000000000000", "0x0000000000000000000000000000000000000000"],
+  "guardian": "0x0000000000000000000000000000000000000000",
+  "owner": "0x0000000000000000000000000000000000000000",
+  "feeBps": 50,
+  "minDepositFee": "500000",
+  "minReleaseFee": "500000",
+  "minDeposit": "10000000",
+  "maxDeposit": "100000000000",
+  "releaseCapacity": "250000000000",
+  "releaseRefillPerSecond": "2893518"
+}

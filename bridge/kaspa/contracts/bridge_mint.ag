@@ -1,0 +1,533 @@
+// BridgeMint: the only issuer of kUSDT.
+//
+// BridgeMint lives in the kUSDT covenant family next to the standard KCC20
+// actor and TokenSeed (both unmodified from the KCC-20 reference). Each mint
+// creates KCC20 outputs for deposits made into the kUSDT vaults on Ethereum
+// and BNB Chain.
+//
+// What this actor enforces on-chain, whoever builds the transaction:
+//
+// - Quorum: 3 of the 5 bridge signers sign every mint. Each signs a digest
+//   that names this covenant, the source chain, the first deposit nonce and
+//   every recipient and amount (Schnorr signatures over 32-byte digests).
+// - Exactly once, in order: every vault numbers its deposits 0, 1, 2, ... and
+//   BridgeMint keeps the next nonce to mint for each chain. A mint must start
+//   at that nonce and moves it forward, so no deposit can be minted twice.
+// - Rate limit: minting draws on an allowance (bucket) that refills over DAA
+//   score up to a ceiling, so stolen signer keys can't mint faster than that.
+//   The refill is measured by the age of this minter UTXO, which consensus
+//   proves and every spend restarts, so no stretch of time can be claimed twice.
+// - Every entry checks every input of its transaction (`require_settled_inputs`):
+//   the minter input's sequence is exactly the age claimed, above 0 only on a
+//   minter UTXO already in a block, and the other inputs are plain or kUSDT coins
+//   that ask no age. So a minter transaction a node's mempool accepts, a copy of
+//   a signed one included, is one a block can take.
+// - Hard cap: `remaining` only goes down. Nothing can ever raise it.
+// - Pause: a guardian key can pause minting. Only the signers can resume it, and
+//   their unpause names the paused coin itself (its outpoint), so it cannot be
+//   signed before the pause it lifts exists.
+// - Governance needs 4 of the 5 signers and a fresh admin nonce: unpausing,
+//   changing the limits, the signer set or the guardian, skipping a deposit
+//   nonce, or changing the minter's own KAS deposit. Like a mint, every
+//   governance message signs the age of the minter UTXO its spend claims, so
+//   nobody who copies a signed action can make it credit less refill.
+// - Recovery, for when two signer keys are lost for good and 4 of 5 can never
+//   be reached again: 3 of the 5 signers can propose a new signer set and
+//   guardian. It can be carried out only once this minter UTXO has stood
+//   untouched for `recovery_delay` DAA (72 hours on mainnet), and until then any
+//   single signer can veto it. Every spend of the minter restarts the wait.
+//
+// Every signature check in the script counts toward the relay limit of 15
+// per P2SH input, whether or not it runs, so governance is one entrypoint
+// with one quorum check: mint 4 + govern 4 + pause 1 = 9.
+
+import "../../../vendor/kcc20-reference/contracts/token_seed.ag";
+
+const int SIGNERS = 5;
+const int MINT_QUORUM = 3;
+const int ADMIN_QUORUM = 4;
+const int RECOVERY_QUORUM = 3;
+const int VETO_QUORUM = 1;
+const int MAX_MINTS = 3;
+// The highest allowance ceiling and refill rate the signers can set: the lifetime cap (SPEC §6), in base units.
+// Without a ceiling, four signers could set limits so large that every later step overflows: no mint, no
+// change of limits, no recovery, for good.
+const int MAX_LIMIT = 1000000000000000;
+// The least KAS (sompi) every minted token output carries: 1 KAS. The signers sign who gets how much kUSDT, not
+// the KAS the outputs carry (whoever submits pays it), so without a floor anyone who sees a signed mint could land
+// a copy that gives a recipient next to no KAS, and a recipient who holds no KAS could not move the kUSDT.
+const int MIN_MINTED_VALUE = 100000000;
+// At most this many inputs in a minter or pool transaction: the bound of `require_settled_inputs`' loop.
+const int MAX_TX_INPUTS = 8;
+
+const byte CHAIN_ETHEREUM = 0x01;
+const byte CHAIN_BSC = 0x02;
+
+const byte ACTION_UNPAUSE = 0x01;
+const byte ACTION_SET_LIMITS = 0x02;
+const byte ACTION_SET_SIGNERS = 0x03;
+const byte ACTION_SKIP_NONCE = 0x04;
+const byte ACTION_SET_VALUE = 0x05;
+const byte ACTION_PROPOSE_RECOVERY = 0x06;
+const byte ACTION_VETO_RECOVERY = 0x07;
+
+state BridgeMintState {
+    // Issuance still allowed under the hard cap, in token base units (10^-6 USDT).
+    int remaining;
+    // Allowance held when this UTXO was created, before its age refills it.
+    int bucket;
+    // Ceiling of the allowance.
+    int capacity;
+    // Allowance regained per DAA score unit.
+    int refill_per_daa;
+    // Next deposit nonce to mint, per source chain.
+    int nonce_ethereum;
+    int nonce_bsc;
+    // Next nonce a governance message must carry.
+    int admin_nonce;
+    bool paused;
+    // Hash of the five signer keys, in order (see `signer_set_of`).
+    byte[32] signer_set;
+    // May pause, nothing else.
+    pubkey guardian;
+    // The KCC-20 extension commitment of every kUSDT state (zero).
+    byte[32] extension_commitment;
+    // How long (DAA) the minter must stand untouched before a recovery can be carried out. Fixed at genesis.
+    int recovery_delay;
+    // Next nonce a recovery proposal or veto must carry. Apart from admin_nonce, so that a
+    // proposal or a veto doesn't void a governance action four signers signed at a nonce.
+    // It does void a signed unpause, which names the paused coin: both spend that coin.
+    int recovery_nonce;
+    bool recovery_pending;
+    // The signer set and guardian proposed, while `recovery_pending`; zero otherwise.
+    byte[32] recovery_signer_set;
+    pubkey recovery_guardian;
+}
+
+fn signer_set_of(pubkey[] keys) -> byte[32] {
+    require(keys.length == SIGNERS);
+    return blake3(
+        byte[](keys[0]) + byte[](keys[1]) + byte[](keys[2]) + byte[](keys[3]) + byte[](keys[4])
+    );
+}
+
+// `quorum` signatures from distinct members of `signer_set`, given in
+// increasing signer order (`indices` are positions in `keys`).
+fn require_quorum(
+    byte[32] digest,
+    byte[32] signer_set,
+    pubkey[] keys,
+    byte[] indices,
+    datasig[] signatures,
+    int quorum
+) {
+    require(signer_set_of(keys) == signer_set);
+    require(indices.length == quorum);
+    require(signatures.length == quorum);
+    int previous = -1;
+    for (i, 0, quorum, ADMIN_QUORUM) {
+        int index = unsigned(indices[i]);
+        require(index > previous);
+        require(index < SIGNERS);
+        require(checkMsgSig(signatures[i], digest, keys[index]));
+        previous = index;
+    }
+}
+
+// The allowance after `age_daa` of refilling: `bucket` plus what came back in
+// that time, at most `capacity`. Never overflows: the product is only formed
+// while it stays below `capacity - bucket + refill_per_daa`.
+fn refilled(int bucket, int age_daa, int capacity, int refill_per_daa) -> int {
+    require(age_daa >= 0);
+    require(refill_per_daa >= 0);
+    int filled = bucket;
+    if (refill_per_daa > 0) {
+        if (bucket < capacity) {
+            int needed = (capacity - bucket + refill_per_daa - 1) / refill_per_daa;
+            if (age_daa >= needed) {
+                filled = capacity;
+            } else {
+                filled = bucket + age_daa * refill_per_daa;
+            }
+        }
+    }
+    if (filled > capacity) {
+        filled = capacity;
+    }
+    return filled;
+}
+
+// A node judges every input of this transaction at acceptance as a block judges it, so a spend of the
+// minter or the pool that a node accepts is one a block can take (SPEC §15, "Parked spends"). A node
+// gives an output of a transaction still in its mempool the DAA score u64::MAX, which reads -1 here,
+// and so checks no relative lock on it; a block always uses the output's real score.
+// - The active input's sequence is exactly `own_lock`, the age the entry claims (0 for none), and a
+//   positive age is claimed only on a coin already in a block.
+// - Every other input asks no relative lock (sequence 0); is a coin already in a block or another output
+//   of the transaction that made the active coin; and is in one of the two families (covenant code that
+//   reads no DAA score, lock time or chain commitment) or a plain Schnorr P2PK coin, whose script reads
+//   nothing a block sees differently.
+// Used by the pool too (pool.ag imports this file through kusdt.ag).
+fn require_settled_inputs(byte[32] family_a, byte[32] family_b, int own_lock) {
+    require(tx.inputs.length <= MAX_TX_INPUTS);
+    require(OpTxInputSeq(this.activeInputIndex) == own_lock as byte[8]);
+    require(own_lock == 0 || OpTxInputDaaScore(this.activeInputIndex) >= 0);
+    for (i, 0, tx.inputs.length, MAX_TX_INPUTS) {
+        if (i != this.activeInputIndex) {
+            require(OpTxInputSeq(i) == byte[8](0x0000000000000000));
+            require(OpTxInputDaaScore(i) >= 0 || tx.inputs[i].outpointTxId == tx.inputs[this.activeInputIndex].outpointTxId);
+            byte[32] family = OpInputCovenantId(i);
+            require(family == family_a || family == family_b
+                || (OpTxInputSpkLen(i) == 36 && OpTxInputSpkSubstr(i, 0, 3) + OpTxInputSpkSubstr(i, 35, 36) == byte[](0x000020ac)));
+        }
+    }
+}
+
+fn mint_digest(byte[32] covenant, byte chain, int first_nonce, int age_daa, KCC20State[] recipients) -> byte[32] {
+    byte[] message = byte[]("kUSDT/mint/v2") + byte[](covenant) + byte[](chain)
+        + byte[](first_nonce as byte[8]) + byte[](age_daa as byte[8]);
+    for (i, 0, recipients.length, MAX_MINTS) {
+        message = message + byte[](recipients[i].owner_scheme) + byte[](recipients[i].owner)
+            + byte[](recipients[i].amount as byte[8]);
+    }
+    return blake3(message);
+}
+
+// Every governance spend settles the allowance with the age it claims (it restarts the UTXO's age), so the
+// signers sign that age, as a mint's signers do. "v2": a signature over the "kUSDT/govern/v1" message, which
+// named no age, can never be read as one over this.
+fn govern_digest(byte[32] covenant, int admin_nonce, int age_daa, byte action, byte[] params) -> byte[32] {
+    return blake3(
+        byte[]("kUSDT/govern/v2") + byte[](covenant) + byte[](admin_nonce as byte[8])
+            + byte[](age_daa as byte[8]) + byte[](action) + params
+    );
+}
+
+// What four signers sign to lift a pause. Unlike every other governance message it names the one minter coin
+// it spends: the paused coin, which does not exist before the pause. So an unpause cannot be signed ahead of a
+// pause, and any other spend of the paused minter (it makes a new coin) voids it. Its own domain string: a
+// signature over a "kUSDT/govern/v2" message can never be read as one over this, nor the reverse.
+// An unpause settles the allowance like every governance spend (the time since the pause refills it), so it
+// signs the age it claims too. "v2": a signature over the "kUSDT/unpause/v1" message, which named no age, is void.
+fn unpause_digest(byte[32] covenant, int admin_nonce, int age_daa, byte[32] outpoint_txid, int outpoint_index) -> byte[32] {
+    return blake3(
+        byte[]("kUSDT/unpause/v2") + byte[](covenant) + byte[](admin_nonce as byte[8])
+            + byte[](age_daa as byte[8]) + byte[](outpoint_txid) + byte[](outpoint_index as byte[8])
+    );
+}
+
+actor BridgeMint owns BridgeMintState {
+    // Mint 1 to MAX_MINTS consecutive deposits of one source chain.
+    entry mint(
+        byte chain,
+        int first_nonce,
+        int age_daa,
+        KCC20State[] recipients,
+        pubkey[] signer_keys,
+        byte[] signer_indices,
+        datasig[] signatures
+    ) emits {
+        minter: BridgeMint,
+        minted: KCC20[1..=MAX_MINTS],
+    } {
+        require(!paused);
+        require(recipients.length == minted.length);
+
+        int total = 0;
+        for (i, 0, recipients.length, MAX_MINTS) {
+            require(recipients[i].amount > 0);
+            require_valid_owner_scheme(recipients[i].owner_scheme);
+            // Minted states can't be borrowed into, and carry the token's extension.
+            require(recipients[i].borrow_scheme == BORROW_DISABLED);
+            require(recipients[i].borrow_guard == byte[32](0x0000000000000000000000000000000000000000000000000000000000000000));
+            require(recipients[i].extension_commitment == extension_commitment);
+            total = total + recipients[i].amount;
+        }
+
+        int next_ethereum = nonce_ethereum;
+        int next_bsc = nonce_bsc;
+        if (chain == CHAIN_ETHEREUM) {
+            require(first_nonce == nonce_ethereum);
+            next_ethereum = first_nonce + recipients.length;
+        } else if (chain == CHAIN_BSC) {
+            require(first_nonce == nonce_bsc);
+            next_bsc = first_nonce + recipients.length;
+        } else {
+            require(false);
+        }
+
+        // Consensus holds this input back until the minter UTXO is `age_daa` old (its
+        // sequence is exactly that), and this spend starts a new UTXO at age zero, so each stretch of time
+        // refills the allowance once. The signers sign the age claimed: a spend that
+        // claimed less would throw the refill away, so nobody else may choose it.
+        require(this.ageDaa >= age_daa);
+        require_settled_inputs(byte[32](self.cov_id), byte[32](self.cov_id), age_daa);
+        int available = refilled(bucket, age_daa, capacity, refill_per_daa);
+        require(total <= available);
+        require(total <= remaining);
+
+        require_quorum(
+            mint_digest(self.cov_id, chain, first_nonce, age_daa, recipients),
+            signer_set,
+            signer_keys,
+            signer_indices,
+            signatures,
+            MINT_QUORUM
+        );
+
+        BridgeMintState next_minter = {
+            remaining: remaining - total,
+            bucket: available - total,
+            capacity: capacity,
+            refill_per_daa: refill_per_daa,
+            nonce_ethereum: next_ethereum,
+            nonce_bsc: next_bsc,
+            admin_nonce: admin_nonce,
+            paused: paused,
+            signer_set: signer_set,
+            guardian: guardian,
+            extension_commitment: extension_commitment,
+            recovery_delay: recovery_delay,
+            recovery_nonce: recovery_nonce,
+            recovery_pending: recovery_pending,
+            recovery_signer_set: recovery_signer_set,
+            recovery_guardian: recovery_guardian,
+        };
+
+        // The minter keeps its KAS deposit. Whoever submits funds the new outputs, with at least
+        // MIN_MINTED_VALUE each: every minted output, whoever owns it (a burn owner too).
+        require(minter.value == self.value);
+        for (i, 0, minted.length, MAX_MINTS) {
+            require(minted[i].value >= MIN_MINTED_VALUE);
+        }
+        become {
+            minter <- BridgeMint(next_minter),
+            minted <- KCC20[](recipients),
+        };
+    }
+
+    // The guardian stops minting. Resuming takes the signers (`unpause`).
+    // An emergency path never waits on a clock: it claims no age, so the time
+    // since the last spend is not credited (only ever less allowance, not more).
+    entry pause(sig guardian_signature) emits {
+        minter: BridgeMint,
+    } {
+        // Pausing a paused minter does nothing but restart the recovery wait.
+        require(!paused);
+        require(checkSig(guardian_signature, guardian));
+        require_settled_inputs(byte[32](self.cov_id), byte[32](self.cov_id), 0);
+        // A pause moves admin_nonce: a 4-of-5 message signed for the nonce the minter held is void. A governance
+        // signature never expires on its own, so a raise of the limits that was signed and never sent would
+        // otherwise still be good after a later pause, for anyone who holds it and three keys.
+        // What a pause does NOT void: a message signed for the nonce it moves to (the pause is what makes that
+        // one valid, which is why an unpause signs the paused coin's outpoint and not only a nonce); a mint
+        // signed before it (good again once unpaused, until its deposit nonce is minted or skipped, or its
+        // signers are replaced); a recovery proposal or veto (they carry the recovery nonce).
+        BridgeMintState next_minter = {
+            remaining: remaining,
+            bucket: bucket,
+            capacity: capacity,
+            refill_per_daa: refill_per_daa,
+            nonce_ethereum: nonce_ethereum,
+            nonce_bsc: nonce_bsc,
+            admin_nonce: admin_nonce + 1,
+            paused: true,
+            signer_set: signer_set,
+            guardian: guardian,
+            extension_commitment: extension_commitment,
+            recovery_delay: recovery_delay,
+            recovery_nonce: recovery_nonce,
+            recovery_pending: recovery_pending,
+            recovery_signer_set: recovery_signer_set,
+            recovery_guardian: recovery_guardian,
+        };
+        require(minter.value == self.value);
+        become minter <- BridgeMint(next_minter);
+    }
+
+    // Every governance action: one entrypoint with one quorum check. `params`
+    // and `age_daa` are exactly what the govern digest signs (SPEC §6).
+    entry govern(
+        byte action,
+        byte[] params,
+        int age_daa,
+        pubkey[] signer_keys,
+        byte[] signer_indices,
+        datasig[] signatures
+    ) emits {
+        minter: BridgeMint,
+    } {
+        // Every action takes 4 of 5, and moves admin_nonce, so a minting quorum
+        // of 3 can't undo the guardian's pause or void a governance action that
+        // 4 signers signed. The recovery actions are the exception: 3 to propose,
+        // any 1 to veto, on their own nonce, so they touch nothing else.
+        int quorum = ADMIN_QUORUM;
+        int signed_nonce = admin_nonce;
+        if (action == ACTION_PROPOSE_RECOVERY) {
+            quorum = RECOVERY_QUORUM;
+            signed_nonce = recovery_nonce;
+        } else if (action == ACTION_VETO_RECOVERY) {
+            quorum = VETO_QUORUM;
+            signed_nonce = recovery_nonce;
+        }
+        // One quorum check for every action (the relay limit counts each signature check in the script).
+        byte[32] digest = govern_digest(self.cov_id, signed_nonce, age_daa, action, params);
+        if (action == ACTION_UNPAUSE) {
+            digest = unpause_digest(
+                self.cov_id,
+                admin_nonce,
+                age_daa,
+                tx.inputs[this.activeInputIndex].outpointTxId,
+                tx.inputs[this.activeInputIndex].outpointIndex
+            );
+        }
+        require_quorum(
+            digest,
+            signer_set,
+            signer_keys,
+            signer_indices,
+            signatures,
+            quorum
+        );
+
+        // This spend restarts the minter UTXO's age, so it settles the allowance
+        // first, whatever the action. Claiming less would refill less, so the quorum
+        // above signed this exact age: a copy of the action that claims another age
+        // carries no valid signature. Consensus holds the input back until the UTXO
+        // is that old; an age of 0 is always valid and credits nothing.
+        require(this.ageDaa >= age_daa);
+        require_settled_inputs(byte[32](self.cov_id), byte[32](self.cov_id), age_daa);
+        int next_bucket = refilled(bucket, age_daa, capacity, refill_per_daa);
+        int next_capacity = capacity;
+        int next_refill = refill_per_daa;
+        int next_ethereum = nonce_ethereum;
+        int next_bsc = nonce_bsc;
+        bool next_paused = paused;
+        byte[32] next_signer_set = signer_set;
+        pubkey next_guardian = guardian;
+        int next_value = self.value;
+        int next_admin_nonce = admin_nonce + 1;
+        int next_recovery_nonce = recovery_nonce;
+        bool next_recovery_pending = recovery_pending;
+        byte[32] next_recovery_signer_set = recovery_signer_set;
+        pubkey next_recovery_guardian = recovery_guardian;
+
+        if (action == ACTION_UNPAUSE) {
+            require(params.length == 0);
+            // Only a paused minter is unpaused, and the signatures are for this paused coin (see unpause_digest).
+            require(paused);
+            next_paused = false;
+        } else if (action == ACTION_SET_LIMITS) {
+            // New allowance ceiling and refill rate. The allowance was settled
+            // at the old rate above; it comes down to the new ceiling if over it.
+            require(params.length == 16);
+            next_capacity = int(byte[8](params.slice(0, 8)));
+            next_refill = int(byte[8](params.slice(8, 16)));
+            require(next_capacity >= 0);
+            require(next_refill >= 0);
+            require(next_capacity <= MAX_LIMIT);
+            require(next_refill <= MAX_LIMIT);
+            if (next_bucket > next_capacity) {
+                next_bucket = next_capacity;
+            }
+        } else if (action == ACTION_SET_SIGNERS) {
+            require(params.length == 64);
+            next_signer_set = byte[32](params.slice(0, 32));
+            next_guardian = pubkey(byte[32](params.slice(32, 64)));
+            // Four signers replacing the set ends any recovery under way.
+            next_recovery_nonce = recovery_nonce + 1;
+            next_recovery_pending = false;
+            next_recovery_signer_set = byte[32](0x0000000000000000000000000000000000000000000000000000000000000000);
+            next_recovery_guardian = pubkey(byte[32](0x0000000000000000000000000000000000000000000000000000000000000000));
+        } else if (action == ACTION_SKIP_NONCE) {
+            // Moves a chain past one deposit that will never be minted (the
+            // vault refunds it instead).
+            require(params.length == 9);
+            byte chain = params[0];
+            int nonce = int(byte[8](params.slice(1, 9)));
+            if (chain == CHAIN_ETHEREUM) {
+                require(nonce == nonce_ethereum);
+                next_ethereum = nonce + 1;
+            } else if (chain == CHAIN_BSC) {
+                require(nonce == nonce_bsc);
+                next_bsc = nonce + 1;
+            } else {
+                require(false);
+            }
+        } else if (action == ACTION_SET_VALUE) {
+            // The minter's own KAS deposit; its state is kept.
+            require(params.length == 8);
+            next_value = int(byte[8](params.slice(0, 8)));
+            require(next_value > 0);
+        } else if (action == ACTION_PROPOSE_RECOVERY) {
+            require(params.length == 64);
+            require(!recovery_pending);
+            next_admin_nonce = admin_nonce;
+            next_recovery_nonce = recovery_nonce + 1;
+            next_recovery_pending = true;
+            next_recovery_signer_set = byte[32](params.slice(0, 32));
+            next_recovery_guardian = pubkey(byte[32](params.slice(32, 64)));
+        } else if (action == ACTION_VETO_RECOVERY) {
+            require(params.length == 0);
+            require(recovery_pending);
+            next_admin_nonce = admin_nonce;
+            next_recovery_nonce = recovery_nonce + 1;
+            next_recovery_pending = false;
+            next_recovery_signer_set = byte[32](0x0000000000000000000000000000000000000000000000000000000000000000);
+            next_recovery_guardian = pubkey(byte[32](0x0000000000000000000000000000000000000000000000000000000000000000));
+        } else {
+            require(false);
+        }
+
+        BridgeMintState next_minter = {
+            remaining: remaining,
+            bucket: next_bucket,
+            capacity: next_capacity,
+            refill_per_daa: next_refill,
+            nonce_ethereum: next_ethereum,
+            nonce_bsc: next_bsc,
+            admin_nonce: next_admin_nonce,
+            paused: next_paused,
+            signer_set: next_signer_set,
+            guardian: next_guardian,
+            extension_commitment: extension_commitment,
+            recovery_delay: recovery_delay,
+            recovery_nonce: next_recovery_nonce,
+            recovery_pending: next_recovery_pending,
+            recovery_signer_set: next_recovery_signer_set,
+            recovery_guardian: next_recovery_guardian,
+        };
+        require(minter.value == next_value);
+        become minter <- BridgeMint(next_minter);
+    }
+
+    // Carries out a proposed recovery. Needs no signature: the proposal had its three,
+    // and consensus holds this input back until the minter UTXO is `recovery_delay` old.
+    entry execute_recovery() emits {
+        minter: BridgeMint,
+    } {
+        require(recovery_pending);
+        require(this.ageDaa >= recovery_delay);
+        require_settled_inputs(byte[32](self.cov_id), byte[32](self.cov_id), recovery_delay);
+        BridgeMintState next_minter = {
+            remaining: remaining,
+            bucket: bucket,
+            capacity: capacity,
+            refill_per_daa: refill_per_daa,
+            nonce_ethereum: nonce_ethereum,
+            nonce_bsc: nonce_bsc,
+            admin_nonce: admin_nonce + 1,
+            paused: paused,
+            signer_set: recovery_signer_set,
+            guardian: recovery_guardian,
+            extension_commitment: extension_commitment,
+            recovery_delay: recovery_delay,
+            recovery_nonce: recovery_nonce + 1,
+            recovery_pending: false,
+            recovery_signer_set: byte[32](0x0000000000000000000000000000000000000000000000000000000000000000),
+            recovery_guardian: pubkey(byte[32](0x0000000000000000000000000000000000000000000000000000000000000000)),
+        };
+        require(minter.value == self.value);
+        become minter <- BridgeMint(next_minter);
+    }
+}

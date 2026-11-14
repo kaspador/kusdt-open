@@ -1,0 +1,56 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "jsx": "react-jsx",
+    "strict": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "allowImportingTsExtensions": false,
+    "noEmit": true,
+    "types": [
+      "chrome",
+      "node",
+      "vite/client"
+    ],
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@kusdt/kaspa": [
+        "../../bridge/packages/kaspa/src/index.ts"
+      ],
+      "@kusdt/kaspa/*": [
+        "../../bridge/packages/kaspa/src/*"
+      ],
+      "@kusdt/protocol": [
+        "../../bridge/packages/protocol/src/index.ts"
+      ],
+      "@kusdt/core": [
+        "../../bridge/packages/core/src/index.ts"
+      ],
+      "@kusdt/core/web": [
+        "../../bridge/packages/core/src/web.ts"
+      ],
+      "@kusdt/core/core": [
+        "../../bridge/packages/core/src/core.ts"
+      ]
+    }
+  },
+  "include": [
+    "src",
+    "test",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "aliases.ts"
+  ]
+}

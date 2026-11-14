@@ -1,0 +1,33 @@
+{
+  "network": "bscTestnet",
+  "chainId": 97,
+  "vault": "0xeB9D91915E3CC696e2fDFDEd614551a5C6bf58f4",
+  "token": "0x422B8b64971C1664DeCB5015c034d8094cb93EF4",
+  "tokenDecimals": 18,
+  "mockUsdt": true,
+  "owner": "0x4f6DB56eA168827C3831af3b7DDb5DC28764b1be",
+  "guardian": "0x93dFF343cf5cc4616759951eee09Af6c7400D50e",
+  "signers": [
+    "0x2Dbead73A0aDB5d190E6eF0c584f6252dB26f53B",
+    "0x84f5AEB8317af9c57c8D3670AEc02E1CC9e8Ff9D",
+    "0x653D21FCB91ad7c192e5df3C5410F0E86E6570F9",
+    "0x3d69c7Aac05980C9C5FBC8bE052A5A3EB733B1a5",
+    "0xBFA743f12515e86BC7d197EFB1E718D598b25E26"
+  ],
+  "params": {
+    "feeBps": 50,
+    "minDepositFee": "500000",
+    "minReleaseFee": "500000",
+    "minDeposit": "10000000",
+    "maxDeposit": "100000000000",
+    "releaseCapacity": "250000000000",
+    "releaseRefillPerSecond": "2893518",
+    "payoutDelay": 600,
+    "surgeFeeBps": 250,
+    "surgeCapacity": "125000000000"
+  },
+  "deployer": "0x4f6DB56eA168827C3831af3b7DDb5DC28764b1be",
+  "deployTx": "0xfc70b9d47e00a7fc3c92f474a626ee3025ff3809cb3be7dd29451660d094ce0c",
+  "deployBlock": 142008917,
+  "deployedAt": "2026-11-10T23:55:14.116Z"
+}

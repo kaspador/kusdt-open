@@ -1,0 +1,21 @@
+{
+  "name": "@kusdt/protocol",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "kUSDT protocol helpers shared by the services, the web app and the wallet",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@kusdt/kaspa": "*",
+    "@noble/curves": "^2.4.0",
+    "@noble/hashes": "^2.4.0"
+  },
+  "devDependencies": {
+    "@kusdt/core": "*"
+  }
+}

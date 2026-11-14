@@ -1,0 +1,16 @@
+// kUSDT: USDT bridged from Ethereum and BNB Chain to Kaspa L1.
+//
+// One covenant family holds three actors:
+// - KCC20: the standard KCC-20 token state and transfers, unmodified from the
+//   reference (argent-lang/kcc20-reference), so wallets and indexers that know
+//   KCC-20 already know kUSDT;
+// - TokenSeed: the reference actor that creates zero-amount receiving states;
+// - BridgeMint: the only way new kUSDT comes into existence.
+
+import "./bridge_mint.ag";
+
+app KUSDT {
+    actor KCC20;
+    actor TokenSeed;
+    actor BridgeMint;
+}

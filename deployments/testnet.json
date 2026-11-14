@@ -1,0 +1,117 @@
+{
+  "name": "testnet",
+  "kaspa": {
+    "network": "testnet-10",
+    "prefix": "kaspatest",
+    "covenantId": "a1d9fd1347128011ad0036b077949d63274d5d3b8ac8351776c30c945ef2c2fb",
+    "poolId": "99445008e36139d0a57040f562414e298a3022fb739c0e9374b1dbb9f4c42171",
+    "finalityDaa": 300,
+    "tokenValue": 150000000,
+    "burnValue": 30000000
+  },
+  "chains": [
+    {
+      "chain": 1,
+      "name": "sepolia",
+      "chainId": 11155111,
+      "vault": "0xeec4724B6D49f694656C1AE82D1A6eF8060f64BA",
+      "token": "0x73ee84cf953CDa0501Be2Ac26E4b92606eF85Fd6",
+      "decimals": 6,
+      "fromBlock": 12121336,
+      "finality": "finalized",
+      "explorer": "https://sepolia.etherscan.io",
+      "blocklist": "isBlackListed"
+    },
+    {
+      "chain": 2,
+      "name": "bsc-testnet",
+      "chainId": 97,
+      "vault": "0xeB9D91915E3CC696e2fDFDEd614551a5C6bf58f4",
+      "token": "0x422B8b64971C1664DeCB5015c034d8094cb93EF4",
+      "decimals": 18,
+      "fromBlock": 142367555,
+      "finality": "finalized",
+      "explorer": "https://testnet.bscscan.com"
+    }
+  ],
+  "signers": [
+    {
+      "kaspa": "188b90691d9ff36a9c156ae6d2b7249933a3322bc5e4cd12e71cedde2b3e766d",
+      "evm": "0x2Dbead73A0aDB5d190E6eF0c584f6252dB26f53B"
+    },
+    {
+      "kaspa": "f451156fa79ad266ce2142239368f6d4d0d272991deb9317e061c2ef01e01d4e",
+      "evm": "0x84f5AEB8317af9c57c8D3670AEc02E1CC9e8Ff9D"
+    },
+    {
+      "kaspa": "11f067df6de6c5af159b4bac04487e938455fcd51341a35a45d777b080e7d8f8",
+      "evm": "0x653D21FCB91ad7c192e5df3C5410F0E86E6570F9"
+    },
+    {
+      "kaspa": "51961a4f724ca41bcf1fcc2e86b331d25995ad0b20c1ee17cac80c0db1284887",
+      "evm": "0x3d69c7Aac05980C9C5FBC8bE052A5A3EB733B1a5"
+    },
+    {
+      "kaspa": "7298f787c949b524affc8a46f3b35d5f89dd8273fed00d2398394b00ba4d6a14",
+      "evm": "0xBFA743f12515e86BC7d197EFB1E718D598b25E26"
+    }
+  ],
+  "launch": {
+    "prepareTxid": "dc03cead11290b7c3cd54ce1aa08bc0d93cddab741ca00d28e8f36413ba3cd11",
+    "genesisTxid": "7ecb75d0701a3c2d3735322a93ceb349d60ba69a6a617fe229ba2a66d50ed207",
+    "poolGenesisTxid": "ffad306036b8f589c020f874a732e4354efe69e3c36de4b1b1f83b86b4b22192",
+    "initialMinter": {
+      "utxo": {
+        "transactionId": "7ecb75d0701a3c2d3735322a93ceb349d60ba69a6a617fe229ba2a66d50ed207",
+        "index": 0,
+        "amount": "500000000",
+        "scriptPublicKey": "0000aa207aa7d378d904a7f4c60da3c03adcd3ffa5ee95ed71e15f0469c1ce91009f0af987",
+        "blockDaaScore": "621806126",
+        "isCoinbase": false,
+        "covenantId": "a1d9fd1347128011ad0036b077949d63274d5d3b8ac8351776c30c945ef2c2fb"
+      },
+      "state": {
+        "remaining": "1000000000000000",
+        "bucket": "500000000000",
+        "capacity": "500000000000",
+        "refillPerDaa": "578703",
+        "nonceEthereum": "12",
+        "nonceBsc": "14",
+        "adminNonce": "0",
+        "paused": false,
+        "recoveryDelay": "36000",
+        "signerSet": "b563c26ffc9f94f977e9d580f02a0b8501c023a8455f2f35b74e79f8df3c0301",
+        "guardian": "3c4c0ef3d985fb93ebdb30c5dd8ff8d6ffffa1e411565a21cc33aa2365a89566"
+      }
+    },
+    "initialPool": {
+      "utxo": {
+        "transactionId": "ffad306036b8f589c020f874a732e4354efe69e3c36de4b1b1f83b86b4b22192",
+        "index": 0,
+        "amount": "100000000",
+        "scriptPublicKey": "0000aa208a55324f8135a18054b5114cc9dbd9def5ace212c21ed427aa0c3ebbe96b1fbe87",
+        "blockDaaScore": "621806136",
+        "isCoinbase": false,
+        "covenantId": "99445008e36139d0a57040f562414e298a3022fb739c0e9374b1dbb9f4c42171"
+      },
+      "state": {
+        "admin": "e2513f24b747f38be69ac0fa7c5306105efc5fb0c929c271832850f965fba6ed",
+        "baseValue": 100000000,
+        "guardian": "3c4c0ef3d985fb93ebdb30c5dd8ff8d6ffffa1e411565a21cc33aa2365a89566",
+        "kasReserve": 0,
+        "maxOutBps": 1000,
+        "paused": false,
+        "protocolKas": 0,
+        "protocolTokens": 0,
+        "tokenCovid": "a1d9fd1347128011ad0036b077949d63274d5d3b8ac8351776c30c945ef2c2fb",
+        "tokenReserve": 0,
+        "totalShares": 0,
+        "windowCredit": 0,
+        "windowLen": 36000,
+        "windowOut": 0,
+        "windowRef": 0
+      }
+    },
+    "scanFrom": "63e1ad3eb62ce39c8a7d2c51c31765a654341632f178e4af7060ba7b862cfe60"
+  }
+}

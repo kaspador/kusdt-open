@@ -1,0 +1,9 @@
+node_modules/
+dist/
+target/
+bridge/evm/artifacts/
+bridge/evm/cache/
+bridge/evm/typechain-types/
+bridge/kaspa/build/
+.env
+*.log
