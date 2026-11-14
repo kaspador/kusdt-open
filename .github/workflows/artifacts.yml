@@ -2,6 +2,8 @@
 # the one pinned compiler. It controls minting, so nobody takes that on trust.
 name: covenant bytecode
 on:
+  # Anyone with access can also start it by hand (Actions, "covenant bytecode", Run workflow).
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
