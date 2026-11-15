@@ -89,9 +89,9 @@ Decimals 6 to 18, checked against the token's own `decimals()`.
 | `feeBps` | 50 (0.50 %) | 50 |
 | `minDepositFee` | 500 000 (0.50 USDT) | 500 000 |
 | `minReleaseFee` | 5 000 000 (5 USDT) | 500 000 (0.50 USDT) |
-| `minDeposit` / `maxDeposit` | 10 000 000 / 100 000 000 000 (10 / 100 000 USDT) | same |
-| `releaseCapacity` | 250 000 000 000 (250 000 USDT) | same |
-| `releaseRefillPerSecond` | 2 893 518 (capacity / 86 400, rounded down) | same |
+| `minDeposit` / `maxDeposit` | 10 000 000 / 8 000 000 000 (10 / 8 000 USDT) at the launch | same |
+| `releaseCapacity` | 50 000 000 000 (50 000 USDT) at the launch | same |
+| `releaseRefillPerSecond` | 578 703 (capacity / 86 400, rounded down) | same |
 
 `maxDeposit` must stay at or below the Kaspa mint allowance ceiling (SPEC §8), which the
 vault can't see: check it when changing either.

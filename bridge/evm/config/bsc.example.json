@@ -9,7 +9,7 @@
   "minDepositFee": "500000",
   "minReleaseFee": "500000",
   "minDeposit": "10000000",
-  "maxDeposit": "100000000000",
-  "releaseCapacity": "250000000000",
-  "releaseRefillPerSecond": "2893518"
+  "maxDeposit": "8000000000",
+  "releaseCapacity": "50000000000",
+  "releaseRefillPerSecond": "578703"
 }

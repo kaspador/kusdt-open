@@ -444,9 +444,9 @@ burn owner commits to (§9), and a refund pays the depositor (`sender` of the `D
 |---|---|
 | Kaspa mint allowance | a ceiling of twice the signers' agreed daily limit (100 000 USDT at the launch), refills fully in 24 h (`refill_per_daa = capacity / 864 000`) |
 | Kaspa hard cap | 1 000 000 000 USDT, can only fall |
-| Vault release allowance | 250 000 USDT per vault, refills fully in 24 h |
+| Vault release allowance | 50 000 USDT per vault at the launch, refills fully in 24 h |
 | Payout wait | 10 minutes in each vault (§7): the owner can set 5 minutes to 24 hours |
-| Deposit | 10 to 100 000 USDT |
+| Deposit | 10 to 8 000 USDT at the launch |
 | Fees | 0.50 % each way; minimum 0.50 USDT per deposit; minimum 5 USDT per release on Ethereum, 0.50 USDT on BNB Chain |
 | Rising deposit fee (§7) | 2.50 % at a full deposit meter (`surgeFeeBps` 250); each vault's meter (`surgeCapacity`) is a quarter of the signers' agreed daily limit |
 
