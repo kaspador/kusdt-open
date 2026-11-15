@@ -1,0 +1,472 @@
+{
+  "version": 2,
+  "target": "mainnet",
+  "kaspaNetwork": "mainnet",
+  "signers": [
+    {
+      "kaspa": "12a34230b9e7b38e6f777a6b70ef3ca313215366fd8d6b9b8a4d740448207734",
+      "evm": "0x5499fcCbdA44B5e48AE0227C878cFDA933e62E6A"
+    },
+    {
+      "kaspa": "d1d5632bda3f2c88ae7cb7c47cf530bacc75e974377bde1f98e1017ba65ebd0b",
+      "evm": "0xe2a5091609E77a376d7a4699706fE9AAbA543659"
+    },
+    {
+      "kaspa": "fcc6d4bd6eed2dbf49a14241453b5aa86b016824a7ade7970649a3fdb55c84f3",
+      "evm": "0x15DE2FAb5a811eCE81DAba114E4C2E391317a6a6"
+    },
+    {
+      "kaspa": "03e8dbf30e29a64f34df2c965e15a398cf52f103c6f47cf8a254fda65105638b",
+      "evm": "0xc0ADA4F554754c3Eb73B91917576206A0aCF0d32"
+    },
+    {
+      "kaspa": "19a1409fa2c214809acb7493f05284f9d37c87b973b6a7fed52f9bfd2a813009",
+      "evm": "0xc89461A8294459759a147D0688236BEd0EdC86FA"
+    }
+  ],
+  "signerSet": "6be80c8cf893515f55462a0bf307122b54668c5a822941c266f1bea70dc5018e",
+  "guardian": {
+    "kaspa": "b17d736d89911bd2bae7442fd2514c45fe1038a6c4a33b73b699bb80b2194604",
+    "evm": "0x5F3dAF6Da89cd5B5F52C3f4218CCE796E2865d6A"
+  },
+  "poolAdmin": {
+    "kaspa": "0e31d5736c0104be3b11df9ed5aff89acf83aa6e87432c64b47869028f01858c"
+  },
+  "coordinator": {
+    "kaspa": "d860bbccda7d40b216cfebe7081689deaac47dcbd70798949b4cabaa2e7d63b7",
+    "kaspaAddress": "kaspa:qrvxpw7vmf75pvskel47wzqk380243rae0ts0xy5ndx2h23w043mweuf0hl3u",
+    "evm": "0x00A6f0e43e51252B5dD4F3876209f7a9a7D83a6E"
+  },
+  "deployer": {
+    "kaspa": "cd9f067e36ba72c3549c0d25f619600b4c3bced5a20d11112dd62d257a422b60",
+    "kaspaAddress": "kaspa:qrxe7pn7x6a89s65nsxjtasevq95cw7w6k3q6yg39htz6ft6gg4kqnkylf4f5",
+    "evm": "0xB183c86C5cA0c9DE43e9371235E9DFcB50cA04D0"
+  },
+  "owners": {
+    "1": {
+      "kind": "access-manager",
+      "safe": "0x69AD98869983757828841c89fd25dCEF440749b1",
+      "emergencyDelay": 21600,
+      "cancellers": [
+        "0xa23A238528e19AA16C8d3c98a59695D717D3A096",
+        "0x5657632648C8fFbF394035a1263E4728e984d542"
+      ],
+      "roles": [
+        {
+          "name": "ADMIN",
+          "id": "0",
+          "members": [
+            {
+              "account": "0x69AD98869983757828841c89fd25dCEF440749b1",
+              "delay": 172800
+            }
+          ],
+          "admin": "0",
+          "guardian": "0",
+          "grantDelay": 0
+        },
+        {
+          "name": "GOVERNOR",
+          "id": "1",
+          "members": [
+            {
+              "account": "0x69AD98869983757828841c89fd25dCEF440749b1",
+              "delay": 172800
+            }
+          ],
+          "admin": "0",
+          "guardian": "4",
+          "grantDelay": 0
+        },
+        {
+          "name": "EMERGENCY",
+          "id": "2",
+          "members": [
+            {
+              "account": "0x69AD98869983757828841c89fd25dCEF440749b1",
+              "delay": 21600
+            }
+          ],
+          "admin": "0",
+          "guardian": "4",
+          "grantDelay": 0
+        },
+        {
+          "name": "PAUSER",
+          "id": "3",
+          "members": [
+            {
+              "account": "0x69AD98869983757828841c89fd25dCEF440749b1",
+              "delay": 0
+            }
+          ],
+          "admin": "0",
+          "guardian": "0",
+          "grantDelay": 0
+        },
+        {
+          "name": "CANCELLER",
+          "id": "4",
+          "members": [
+            {
+              "account": "0xa23A238528e19AA16C8d3c98a59695D717D3A096",
+              "delay": 0
+            },
+            {
+              "account": "0x5657632648C8fFbF394035a1263E4728e984d542",
+              "delay": 0
+            }
+          ],
+          "admin": "0",
+          "guardian": "0",
+          "grantDelay": 0
+        },
+        {
+          "name": "GUARDED",
+          "id": "5",
+          "members": [],
+          "admin": "0",
+          "guardian": "4",
+          "grantDelay": 0
+        }
+      ],
+      "vaultFunctions": [
+        {
+          "signature": "setFees(uint16,uint256,uint256)",
+          "selector": "0x286a9acc",
+          "role": "GOVERNOR"
+        },
+        {
+          "signature": "setDepositSurge(uint16,uint256)",
+          "selector": "0x387d7599",
+          "role": "GOVERNOR"
+        },
+        {
+          "signature": "reinstateRelease(bytes32)",
+          "selector": "0x9f0d7c0a",
+          "role": "GOVERNOR"
+        },
+        {
+          "signature": "reinstateRefund(uint64)",
+          "selector": "0x28b0742b",
+          "role": "GOVERNOR"
+        },
+        {
+          "signature": "setDepositLimits(uint256,uint256)",
+          "selector": "0x4eddea06",
+          "role": "GOVERNOR"
+        },
+        {
+          "signature": "setReleaseLimits(uint256,uint256)",
+          "selector": "0x135d792c",
+          "role": "GOVERNOR"
+        },
+        {
+          "signature": "setSigners(address[5])",
+          "selector": "0xbd49362d",
+          "role": "GOVERNOR"
+        },
+        {
+          "signature": "setPayoutDelay(uint64)",
+          "selector": "0x4fb7041f",
+          "role": "GOVERNOR"
+        },
+        {
+          "signature": "withdrawFees(address,uint256)",
+          "selector": "0xad3b1b47",
+          "role": "GOVERNOR"
+        },
+        {
+          "signature": "transferOwnership(address)",
+          "selector": "0xf2fde38b",
+          "role": "GOVERNOR"
+        },
+        {
+          "signature": "setGuardian(address)",
+          "selector": "0x8a0dac4a",
+          "role": "EMERGENCY"
+        },
+        {
+          "signature": "unpause()",
+          "selector": "0x3f4ba83a",
+          "role": "EMERGENCY"
+        },
+        {
+          "signature": "cancelRelease(bytes32)",
+          "selector": "0xb5503895",
+          "role": "EMERGENCY"
+        },
+        {
+          "signature": "cancelRefund(uint64)",
+          "selector": "0xa6366859",
+          "role": "EMERGENCY"
+        },
+        {
+          "signature": "pause()",
+          "selector": "0x8456cb59",
+          "role": "PAUSER"
+        }
+      ]
+    },
+    "2": {
+      "kind": "access-manager",
+      "safe": "0x69AD98869983757828841c89fd25dCEF440749b1",
+      "emergencyDelay": 21600,
+      "cancellers": [
+        "0xa23A238528e19AA16C8d3c98a59695D717D3A096",
+        "0x5657632648C8fFbF394035a1263E4728e984d542"
+      ],
+      "roles": [
+        {
+          "name": "ADMIN",
+          "id": "0",
+          "members": [
+            {
+              "account": "0x69AD98869983757828841c89fd25dCEF440749b1",
+              "delay": 172800
+            }
+          ],
+          "admin": "0",
+          "guardian": "0",
+          "grantDelay": 0
+        },
+        {
+          "name": "GOVERNOR",
+          "id": "1",
+          "members": [
+            {
+              "account": "0x69AD98869983757828841c89fd25dCEF440749b1",
+              "delay": 172800
+            }
+          ],
+          "admin": "0",
+          "guardian": "4",
+          "grantDelay": 0
+        },
+        {
+          "name": "EMERGENCY",
+          "id": "2",
+          "members": [
+            {
+              "account": "0x69AD98869983757828841c89fd25dCEF440749b1",
+              "delay": 21600
+            }
+          ],
+          "admin": "0",
+          "guardian": "4",
+          "grantDelay": 0
+        },
+        {
+          "name": "PAUSER",
+          "id": "3",
+          "members": [
+            {
+              "account": "0x69AD98869983757828841c89fd25dCEF440749b1",
+              "delay": 0
+            }
+          ],
+          "admin": "0",
+          "guardian": "0",
+          "grantDelay": 0
+        },
+        {
+          "name": "CANCELLER",
+          "id": "4",
+          "members": [
+            {
+              "account": "0xa23A238528e19AA16C8d3c98a59695D717D3A096",
+              "delay": 0
+            },
+            {
+              "account": "0x5657632648C8fFbF394035a1263E4728e984d542",
+              "delay": 0
+            }
+          ],
+          "admin": "0",
+          "guardian": "0",
+          "grantDelay": 0
+        },
+        {
+          "name": "GUARDED",
+          "id": "5",
+          "members": [],
+          "admin": "0",
+          "guardian": "4",
+          "grantDelay": 0
+        }
+      ],
+      "vaultFunctions": [
+        {
+          "signature": "setFees(uint16,uint256,uint256)",
+          "selector": "0x286a9acc",
+          "role": "GOVERNOR"
+        },
+        {
+          "signature": "setDepositSurge(uint16,uint256)",
+          "selector": "0x387d7599",
+          "role": "GOVERNOR"
+        },
+        {
+          "signature": "reinstateRelease(bytes32)",
+          "selector": "0x9f0d7c0a",
+          "role": "GOVERNOR"
+        },
+        {
+          "signature": "reinstateRefund(uint64)",
+          "selector": "0x28b0742b",
+          "role": "GOVERNOR"
+        },
+        {
+          "signature": "setDepositLimits(uint256,uint256)",
+          "selector": "0x4eddea06",
+          "role": "GOVERNOR"
+        },
+        {
+          "signature": "setReleaseLimits(uint256,uint256)",
+          "selector": "0x135d792c",
+          "role": "GOVERNOR"
+        },
+        {
+          "signature": "setSigners(address[5])",
+          "selector": "0xbd49362d",
+          "role": "GOVERNOR"
+        },
+        {
+          "signature": "setPayoutDelay(uint64)",
+          "selector": "0x4fb7041f",
+          "role": "GOVERNOR"
+        },
+        {
+          "signature": "withdrawFees(address,uint256)",
+          "selector": "0xad3b1b47",
+          "role": "GOVERNOR"
+        },
+        {
+          "signature": "transferOwnership(address)",
+          "selector": "0xf2fde38b",
+          "role": "GOVERNOR"
+        },
+        {
+          "signature": "setGuardian(address)",
+          "selector": "0x8a0dac4a",
+          "role": "EMERGENCY"
+        },
+        {
+          "signature": "unpause()",
+          "selector": "0x3f4ba83a",
+          "role": "EMERGENCY"
+        },
+        {
+          "signature": "cancelRelease(bytes32)",
+          "selector": "0xb5503895",
+          "role": "EMERGENCY"
+        },
+        {
+          "signature": "cancelRefund(uint64)",
+          "selector": "0xa6366859",
+          "role": "EMERGENCY"
+        },
+        {
+          "signature": "pause()",
+          "selector": "0x8456cb59",
+          "role": "PAUSER"
+        }
+      ]
+    }
+  },
+  "safeHistory": {
+    "1": {
+      "creationTx": "0xce4b7a34c1e24079eae93342efa2ba3237065c96b66a43766f84aa8eb5b37beb",
+      "txs": [
+        "0xf18e43073d85ee4aea9f7141864f5aabb4618af91f2c699c913f76dbaab784fb"
+      ]
+    },
+    "2": {
+      "creationTx": "0xf1ed47379ce9f8c8c7c1c75863b3fcf83abd759e221a21bde9ff4aafb974d5c7",
+      "txs": [
+        "0x9fa60da36140f69e572dd85f9aeaab3497a9d96cc0d10974f38580ed5756a6ed"
+      ]
+    }
+  },
+  "safeOwners": {
+    "1": {
+      "owners": [
+        "0x8ad0e77c101357A6b33b52c0a19EB2C5093E5980",
+        "0x84Dd71f0a2A32c02B33dA1553C4074d0ff5E945e",
+        "0xC52B8753ac34f6504d26DD421497Aa708d135F73"
+      ],
+      "threshold": 2
+    },
+    "2": {
+      "owners": [
+        "0x8ad0e77c101357A6b33b52c0a19EB2C5093E5980",
+        "0x84Dd71f0a2A32c02B33dA1553C4074d0ff5E945e",
+        "0xC52B8753ac34f6504d26DD421497Aa708d135F73"
+      ],
+      "threshold": 2
+    }
+  },
+  "vaults": {
+    "1": {
+      "feeBps": 50,
+      "minDepositFee": "500000",
+      "minReleaseFee": "5000000",
+      "minDeposit": "10000000",
+      "maxDeposit": "8000000000",
+      "releaseCapacity": "50000000000",
+      "releaseRefillPerSecond": "578703",
+      "payoutDelay": 600,
+      "surgeFeeBps": 250,
+      "surgeCapacity": "12500000000",
+      "token": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      "tokenDecimals": 6
+    },
+    "2": {
+      "feeBps": 50,
+      "minDepositFee": "500000",
+      "minReleaseFee": "500000",
+      "minDeposit": "10000000",
+      "maxDeposit": "8000000000",
+      "releaseCapacity": "50000000000",
+      "releaseRefillPerSecond": "578703",
+      "payoutDelay": 600,
+      "surgeFeeBps": 250,
+      "surgeCapacity": "12500000000",
+      "token": "0x55d398326f99059fF775485246999027B3197955",
+      "tokenDecimals": 18
+    }
+  },
+  "minter": {
+    "remaining": "1000000000000000",
+    "capacity": "100000000000",
+    "refillPerDaa": "115740",
+    "recoveryDelay": "2592000"
+  },
+  "signerDailyLimit": "50000000000",
+  "pool": {
+    "maxOutBps": 1000,
+    "windowLen": 36000,
+    "baseValue": "100000000"
+  },
+  "kaspa": {
+    "finalityDaa": 1000,
+    "finalityTiers": [
+      {
+        "above": "10000000000",
+        "daa": 6000
+      },
+      {
+        "above": "100000000000",
+        "daa": 36000
+      }
+    ],
+    "tokenValue": 150000000,
+    "burnValue": 30000000
+  },
+  "metadata": {
+    "name": "kUSDT",
+    "symbol": "kUSDT",
+    "decimals": 6,
+    "description": "USDT from Ethereum and BNB Chain on Kaspa L1"
+  }
+}

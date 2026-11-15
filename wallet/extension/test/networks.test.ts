@@ -160,14 +160,19 @@ describe('what stored settings cannot decide', () => {
     expect(local.chains.ethereum.rpcUrls).toEqual(['http://localhost:9999']);
   });
 
-  it('mainnet has no deployment until the build names one, whatever is stored', async () => {
+  it('mainnet names only the deployment the build pins (none before the launch), whatever is stored', async () => {
+    const { DEFAULTS } = await import('../src/config/defaults');
     const { mergeConfig, networkLive, kusdtReady } = await import('../src/config/settings');
     const typed = { covenantId: '33'.repeat(32), poolId: '44'.repeat(32), apiUrl: 'https://api.example/api/v1', chains: { ethereum: { vault: '0x' + 'a7'.repeat(20), rpcUrls: ['https://rpc.example'] } } };
     const c = mergeConfig('mainnet', typed);
-    expect(c.covenantId).toBe('');
-    expect(c.chains.ethereum.vault).toBe('');
-    expect(kusdtReady(c)).toBe(false);
-    expect(networkLive('mainnet', { mainnet: typed })).toBe(false);
+    const launched = DEFAULTS.mainnet.covenantId !== '';
+    expect(c.covenantId).toBe(DEFAULTS.mainnet.covenantId);
+    expect(c.poolId).toBe(DEFAULTS.mainnet.poolId);
+    expect(c.chains.ethereum.vault).toBe(DEFAULTS.mainnet.chains.ethereum.vault);
+    expect(c.covenantId).not.toBe(typed.covenantId);
+    expect(c.chains.ethereum.vault).not.toBe(typed.chains.ethereum.vault);
+    expect(kusdtReady(c)).toBe(launched);
+    expect(networkLive('mainnet', { mainnet: typed })).toBe(launched);
   });
 
   it('on mainnet the KAS sent with kUSDT and burned with a bridge back is the built-in amount', async () => {

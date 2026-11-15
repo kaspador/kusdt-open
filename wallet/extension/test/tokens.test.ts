@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { chooseStates, mergesFor } from '@/kusdt/tokens';
 import { configProblem, kusdtReady, mergeConfig, networkLive, overrideOf, poolReady } from '@/config/settings';
 import { DEFAULTS } from '@/config/defaults';
+
+const MAINNET_RECORD = path.resolve(__dirname, '../../../deployments/mainnet.json');
 
 const s = (...amounts: number[]) => amounts.map((a, i) => ({ id: i, state: { amount: BigInt(a) } }));
 
@@ -30,17 +32,35 @@ describe('choosing token states for a send', () => {
 });
 
 describe('settings', () => {
-  it('every default is valid; the testnet preset is the live deployment, mainnet has none yet', () => {
+  it('every default is valid; the testnet preset is a live deployment, mainnet only once the launch is pinned', () => {
     for (const net of ['mainnet', 'testnet-10', 'simnet'] as const) expect(configProblem(DEFAULTS[net])).toBeNull();
     expect(DEFAULTS['testnet-10'].covenantId).toMatch(/^[0-9a-f]{64}$/); // which one: the next test
     expect(DEFAULTS['testnet-10'].chains.ethereum.chainId).toBe(11155111);
     expect(DEFAULTS['testnet-10'].nodeUrl).toBe('');
     expect(kusdtReady(DEFAULTS['testnet-10'])).toBe(true);
     expect(poolReady(DEFAULTS['testnet-10'])).toBe(true);
-    expect(DEFAULTS.mainnet.covenantId).toBe('');
-    expect(networkLive('mainnet')).toBe(false);
+    // Mainnet is pinned exactly when the release carries the launch's record (deploy/mainnet-web/launch-switch.mjs).
+    const launched = existsSync(MAINNET_RECORD);
+    expect(DEFAULTS.mainnet.covenantId === '').toBe(!launched);
+    expect(networkLive('mainnet')).toBe(launched);
     expect(networkLive('testnet-10')).toBe(true);
     expect(DEFAULTS.mainnet.chains.bsc.token).toBe('0x55d398326f99059fF775485246999027B3197955');
+  });
+
+  it.skipIf(!existsSync(MAINNET_RECORD))('the mainnet preset matches deployments/mainnet.json', () => {
+    const dep = JSON.parse(readFileSync(MAINNET_RECORD, 'utf8'));
+    const m = DEFAULTS.mainnet;
+    expect(dep.kaspa.network).toBe('mainnet');
+    expect(m.covenantId).toBe(dep.kaspa.covenantId);
+    expect(m.poolId).toBe(dep.kaspa.poolId);
+    expect(m.tokenValue).toBe(String(dep.kaspa.tokenValue));
+    expect(m.burnValue).toBe(String(dep.kaspa.burnValue));
+    expect(m.apiUrl).toMatch(/^https:\/\/.+\/api\/v1$/);
+    for (const c of dep.chains) {
+      const ch = m.chains[c.chain === 1 ? 'ethereum' : 'bsc'];
+      expect({ chainId: ch.chainId, vault: ch.vault.toLowerCase(), token: ch.token.toLowerCase(), decimals: ch.decimals })
+        .toEqual({ chainId: c.chainId, vault: c.vault.toLowerCase(), token: c.token.toLowerCase(), decimals: c.decimals });
+    }
   });
 
   it('the testnet preset matches deployments/testnet.json', () => {

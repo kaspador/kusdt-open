@@ -53,6 +53,8 @@ describe('R21-W2-4: a locked wallet answers no site its account or balances', ()
   it('after the auto-lock a connected site is told neither, and nothing is read for it; unlocked again, it is answered', async () => {
     const fx = fakeChrome();
     vi.stubGlobal('chrome', fx.chrome);
+    // On the testnet, where the site's connection below is (a new install starts on DEFAULT_NETWORK).
+    fx.areas.local.set('kusdt.settings', { network: 'testnet-10' });
     const asked: string[] = [];
     vi.stubGlobal('fetch', async (url: unknown) => { asked.push(String(url)); throw new Error('no network in the tests'); });
     vi.resetModules();

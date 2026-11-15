@@ -18,6 +18,8 @@ async function events(before: any, after: any): Promise<unknown[]> {
     runtime: { lastError: undefined },
     tabs: { query: (_q: unknown, cb: (t: unknown[]) => void) => cb([{ id: 7, url: `${ORIGIN}/#/bridge` }]), sendMessage: (_id: number, m: any, cb: () => void) => { sent.push(m.data); cb(); } },
   });
+  // The wallet is on the testnet, where these connections are (a new install starts on DEFAULT_NETWORK).
+  await local.set({ 'kusdt.settings': { network: 'testnet-10' } });
   await accountsChangedFor('testnet-10', before, after);
   return sent;
 }

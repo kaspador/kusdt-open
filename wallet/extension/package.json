@@ -1,6 +1,6 @@
 {
   "name": "kusdt-wallet-extension",
-  "version": "0.9.23",
+  "version": "1.0.0",
   "private": true,
   "description": "kUSDT Wallet: a Kaspa L1 wallet with kUSDT (KCC-20), the KAS-kUSDT pool and the USDT bridge to Ethereum and BNB Chain.",
   "type": "module",

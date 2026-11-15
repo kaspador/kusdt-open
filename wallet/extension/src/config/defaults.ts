@@ -14,7 +14,7 @@ import type { Blocklist } from '@kusdt/protocol';
 
 export type KaspaNetworkName = 'mainnet' | 'testnet-10' | 'simnet';
 export const KASPA_NETWORK_NAMES: readonly KaspaNetworkName[] = ['testnet-10', 'mainnet', 'simnet'];
-export const DEFAULT_NETWORK: KaspaNetworkName = 'testnet-10';
+export const DEFAULT_NETWORK: KaspaNetworkName = 'mainnet';
 
 /** SPEC §2 chain codes. */
 export type ChainKey = 'ethereum' | 'bsc';
@@ -109,26 +109,25 @@ export const DEFAULTS: Record<KaspaNetworkName, NetworkConfig> = {
       },
     },
   },
-  // Nothing is deployed on mainnet yet: the Network screen shows it as "Not
-  // live yet" and it can't be picked while its covenant ID is empty.
+  // Mainnet, launched 2026-11-15 (deployments/mainnet.json, SHA-256 a76316edd3aa23badfafcd60b88275d29230c2a23290e8f8acc547a9dc456443).
   mainnet: {
     nodeUrl: '',
-    apiUrl: TO_BE_FILLED,
-    covenantId: TO_BE_FILLED,
-    poolId: TO_BE_FILLED,
+    apiUrl: 'https://api.trestly.io/api/v1',
+    covenantId: '50b3477e7368d0c5bfbd64483b4607350ec411377972f33e40b2d4b6d1513fd3',
+    poolId: '28e7758e6fc0e2054cceb7f87f9da44a53accfa0a1795c8075c80fb99c83aaad',
     tokenValue: DEFAULT_TOKEN_VALUE,
     positionValue: DEFAULT_POSITION_VALUE,
     burnValue: DEFAULT_BURN_VALUE,
     chains: {
       ethereum: {
         name: 'Ethereum', chainId: 1, gasSymbol: 'ETH',
-        vault: TO_BE_FILLED, token: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6, blocklist: 'isBlackListed',
+        vault: '0xfa9869982542FB20baD929789B252b7b06EeE10e', token: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6, blocklist: 'isBlackListed',
         rpcUrls: ['https://ethereum-rpc.publicnode.com', 'https://eth.drpc.org'],
         explorerTx: 'https://etherscan.io/tx/{tx}',
       },
       bsc: {
         name: 'BNB Chain', chainId: 56, gasSymbol: 'BNB',
-        vault: TO_BE_FILLED, token: '0x55d398326f99059fF775485246999027B3197955', decimals: 18, blocklist: null,
+        vault: '0xfa9869982542FB20baD929789B252b7b06EeE10e', token: '0x55d398326f99059fF775485246999027B3197955', decimals: 18, blocklist: null,
         rpcUrls: ['https://bsc-rpc.publicnode.com', 'https://bsc-dataseed.bnbchain.org'],
         explorerTx: 'https://bscscan.com/tx/{tx}',
       },

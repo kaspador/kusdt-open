@@ -6,6 +6,7 @@ import {
 import { finishRequest } from '@/provider/answer';
 import { session } from '@/lib/storage';
 import { networkLive } from '@/config/settings';
+import { DEFAULTS } from '@/config/defaults';
 
 describe('kaspa_switchNetwork (as the page asks it: bridge/web/src/kaspa/provider.ts)', () => {
   const ID2 = 'switch-request-1';
@@ -41,9 +42,9 @@ describe('kaspa_switchNetwork (as the page asks it: bridge/web/src/kaspa/provide
     expect([ERR.unauthorized, ERR.rejected, ERR.unsupported, ERR.busy, ERR.invalid]).toEqual([4100, 4001, 4200, -32002, -32602]);
   });
 
-  it("live means a pinned deployment: Testnet by default, Mainnet not yet, Local once the stack's is pinned", () => {
+  it("live means a pinned deployment: Testnet always, Mainnet once the build pins it, Local once the stack's is pinned", () => {
     expect(networkLive('testnet-10')).toBe(true);
-    expect(networkLive('mainnet')).toBe(false);
+    expect(networkLive('mainnet')).toBe(DEFAULTS.mainnet.covenantId !== '');
     expect(networkLive('simnet')).toBe(false);
     expect(networkLive('simnet', { simnet: { covenantId: 'ab'.repeat(32) } })).toBe(true);
   });

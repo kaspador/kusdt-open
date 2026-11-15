@@ -1,0 +1,158 @@
+{
+  "name": "mainnet",
+  "kaspa": {
+    "network": "mainnet",
+    "prefix": "kaspa",
+    "covenantId": "50b3477e7368d0c5bfbd64483b4607350ec411377972f33e40b2d4b6d1513fd3",
+    "poolId": "28e7758e6fc0e2054cceb7f87f9da44a53accfa0a1795c8075c80fb99c83aaad",
+    "finalityDaa": 1000,
+    "finalityTiers": [
+      {
+        "above": "10000000000",
+        "daa": 6000
+      },
+      {
+        "above": "100000000000",
+        "daa": 36000
+      }
+    ],
+    "tokenValue": 150000000,
+    "burnValue": 30000000
+  },
+  "chains": [
+    {
+      "chain": 1,
+      "name": "ethereum",
+      "chainId": 1,
+      "vault": "0xfa9869982542FB20baD929789B252b7b06EeE10e",
+      "token": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      "decimals": 6,
+      "fromBlock": 26419889,
+      "finality": "finalized",
+      "explorer": "https://etherscan.io",
+      "blocklist": "isBlackListed",
+      "accessManager": "0xDD55cfaf862AD64259b41a96b47927A3c2f8E2DB",
+      "accessManagerDeployTx": "0xa0fa31b58115c52baa30654fe9e03b879431d207945a1a7e4250aca2f2542ec0",
+      "ownerSafe": "0x69AD98869983757828841c89fd25dCEF440749b1",
+      "ownerSafeHistory": {
+        "creationTx": "0xce4b7a34c1e24079eae93342efa2ba3237065c96b66a43766f84aa8eb5b37beb",
+        "txs": [
+          "0xf18e43073d85ee4aea9f7141864f5aabb4618af91f2c699c913f76dbaab784fb"
+        ]
+      }
+    },
+    {
+      "chain": 2,
+      "name": "bsc",
+      "chainId": 56,
+      "vault": "0xfa9869982542FB20baD929789B252b7b06EeE10e",
+      "token": "0x55d398326f99059fF775485246999027B3197955",
+      "decimals": 18,
+      "fromBlock": 133722515,
+      "finality": "finalized",
+      "explorer": "https://bscscan.com",
+      "accessManager": "0xDD55cfaf862AD64259b41a96b47927A3c2f8E2DB",
+      "accessManagerDeployTx": "0x6e409a494e91c77fe736a616afae306498f6eb4e868eacb9b1e7beadc8e86636",
+      "ownerSafe": "0x69AD98869983757828841c89fd25dCEF440749b1",
+      "ownerSafeHistory": {
+        "creationTx": "0xf1ed47379ce9f8c8c7c1c75863b3fcf83abd759e221a21bde9ff4aafb974d5c7",
+        "txs": [
+          "0x9fa60da36140f69e572dd85f9aeaab3497a9d96cc0d10974f38580ed5756a6ed"
+        ]
+      }
+    }
+  ],
+  "signers": [
+    {
+      "kaspa": "12a34230b9e7b38e6f777a6b70ef3ca313215366fd8d6b9b8a4d740448207734",
+      "evm": "0x5499fcCbdA44B5e48AE0227C878cFDA933e62E6A"
+    },
+    {
+      "kaspa": "d1d5632bda3f2c88ae7cb7c47cf530bacc75e974377bde1f98e1017ba65ebd0b",
+      "evm": "0xe2a5091609E77a376d7a4699706fE9AAbA543659"
+    },
+    {
+      "kaspa": "fcc6d4bd6eed2dbf49a14241453b5aa86b016824a7ade7970649a3fdb55c84f3",
+      "evm": "0x15DE2FAb5a811eCE81DAba114E4C2E391317a6a6"
+    },
+    {
+      "kaspa": "03e8dbf30e29a64f34df2c965e15a398cf52f103c6f47cf8a254fda65105638b",
+      "evm": "0xc0ADA4F554754c3Eb73B91917576206A0aCF0d32"
+    },
+    {
+      "kaspa": "19a1409fa2c214809acb7493f05284f9d37c87b973b6a7fed52f9bfd2a813009",
+      "evm": "0xc89461A8294459759a147D0688236BEd0EdC86FA"
+    }
+  ],
+  "launch": {
+    "prepareTxid": "14a39943bccc21a013f43b03d593f6ff5b6e931af36585e2677cd8e9662d79b0",
+    "genesisTxid": "afce547ddefcca0c1fc4877726095dd50e32f10f80028d9adc3244975934fe7d",
+    "poolGenesisTxid": "c4d7a9d79a3041f0745b06657db098c4329730420b8f7f65b58d91d49cf6f5eb",
+    "initialMinter": {
+      "utxo": {
+        "transactionId": "afce547ddefcca0c1fc4877726095dd50e32f10f80028d9adc3244975934fe7d",
+        "index": 0,
+        "amount": "500000000",
+        "scriptPublicKey": "0000aa2006cd97cd8f495a58d3179728247d1aae76b3e09c08233bf1ce190e9e1fa2cb2887",
+        "blockDaaScore": "593202724",
+        "isCoinbase": false,
+        "covenantId": "50b3477e7368d0c5bfbd64483b4607350ec411377972f33e40b2d4b6d1513fd3"
+      },
+      "state": {
+        "remaining": "1000000000000000",
+        "bucket": "100000000000",
+        "capacity": "100000000000",
+        "refillPerDaa": "115740",
+        "nonceEthereum": "0",
+        "nonceBsc": "0",
+        "adminNonce": "0",
+        "paused": false,
+        "signerSet": "6be80c8cf893515f55462a0bf307122b54668c5a822941c266f1bea70dc5018e",
+        "guardian": "b17d736d89911bd2bae7442fd2514c45fe1038a6c4a33b73b699bb80b2194604",
+        "recoveryDelay": "2592000"
+      }
+    },
+    "initialPool": {
+      "utxo": {
+        "transactionId": "c4d7a9d79a3041f0745b06657db098c4329730420b8f7f65b58d91d49cf6f5eb",
+        "index": 0,
+        "amount": "100000000",
+        "scriptPublicKey": "0000aa205b5e2e35360f7e1bb76f97194beb80cd213a188dd168f7baec34c5acf2d1c99d87",
+        "blockDaaScore": "593202735",
+        "isCoinbase": false,
+        "covenantId": "28e7758e6fc0e2054cceb7f87f9da44a53accfa0a1795c8075c80fb99c83aaad"
+      },
+      "state": {
+        "admin": "0e31d5736c0104be3b11df9ed5aff89acf83aa6e87432c64b47869028f01858c",
+        "baseValue": 100000000,
+        "guardian": "b17d736d89911bd2bae7442fd2514c45fe1038a6c4a33b73b699bb80b2194604",
+        "kasReserve": 0,
+        "maxOutBps": 1000,
+        "paused": false,
+        "protocolKas": 0,
+        "protocolTokens": 0,
+        "tokenCovid": "50b3477e7368d0c5bfbd64483b4607350ec411377972f33e40b2d4b6d1513fd3",
+        "tokenReserve": 0,
+        "totalShares": 0,
+        "windowCredit": 0,
+        "windowLen": 36000,
+        "windowOut": 0,
+        "windowRef": 0
+      }
+    },
+    "scanFrom": "dc729c2bdb002a517a32702a9d8b32979602f926dfa3e7f84c5e74d2d379dc03",
+    "seedOwner": "cd9f067e36ba72c3549c0d25f619600b4c3bced5a20d11112dd62d257a422b60",
+    "seedValue": "200000000",
+    "poolFunding": {
+      "transactionId": "3ed19149d361f04a94c9a078d45ffc52f55b801420d0e2c965e9957c9c129921",
+      "index": 0
+    },
+    "prepareFunding": [
+      {
+        "transactionId": "b5df7dcf1c3ddca1cdd7f641e9bb1586822b8ad5399827eb5f3591e53fde1bb0",
+        "index": 0,
+        "amount": "1500000000"
+      }
+    ]
+  }
+}
